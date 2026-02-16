@@ -12,9 +12,9 @@ export default function SignUpPage() {
         <Image
           src="/aress-CRM-logo.png"
           alt="AressCRM"
-          width={180}
-          height={48}
-          className="mb-2 h-12 w-auto"
+          width={320}
+          height={116}
+          className="mb-2 h-14 w-auto"
           priority
         />
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">

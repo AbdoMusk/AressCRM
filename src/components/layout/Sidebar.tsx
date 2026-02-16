@@ -93,9 +93,9 @@ export function Sidebar({ permissions }: { permissions: string[] }) {
           <Image
             src="/aress-CRM-logo.png"
             alt="AressCRM"
-            width={140}
-            height={36}
-            className="h-8 w-auto"
+            width={320}
+            height={116}
+            className="h-14 w-auto"
             priority
           />
         )}
