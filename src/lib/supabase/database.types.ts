@@ -1,11 +1,8 @@
 /**
- * Supabase Database Types
+ * Supabase Database Types — OMP Engine (Object-Module-Processor)
  *
- * This file will be replaced by auto-generated types from:
- *   npx supabase gen types typescript --local > src/lib/supabase/database.types.ts
- *
- * For now, we define the shape manually to unblock development.
- * Each table must include a `Relationships` array for supabase-js v2.95+.
+ * Defines the type shape for the Object-Module-Processor schema.
+ * Each table includes Row, Insert, Update, and Relationships for supabase-js v2.95+.
  */
 
 export type Json =
@@ -27,15 +24,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: {
-          id: string;
-          full_name: string;
-          avatar_url?: string | null;
-        };
-        Update: {
-          full_name?: string;
-          avatar_url?: string | null;
-        };
+        Insert: { id: string; full_name: string; avatar_url?: string | null };
+        Update: { full_name?: string; avatar_url?: string | null };
         Relationships: [];
       };
       roles: {
@@ -45,297 +35,192 @@ export interface Database {
           description: string | null;
           created_at: string;
         };
-        Insert: {
-          id?: string;
-          name: string;
-          description?: string | null;
-        };
-        Update: {
-          name?: string;
-          description?: string | null;
-        };
+        Insert: { id?: string; name: string; description?: string | null };
+        Update: { name?: string; description?: string | null };
         Relationships: [];
       };
       permissions: {
-        Row: {
-          id: string;
-          action: string;
-          description: string | null;
-        };
-        Insert: {
-          id?: string;
-          action: string;
-          description?: string | null;
-        };
-        Update: {
-          action?: string;
-          description?: string | null;
-        };
+        Row: { id: string; action: string; description: string | null };
+        Insert: { id?: string; action: string; description?: string | null };
+        Update: { action?: string; description?: string | null };
         Relationships: [];
       };
       role_permissions: {
-        Row: {
-          role_id: string;
-          permission_id: string;
-        };
-        Insert: {
-          role_id: string;
-          permission_id: string;
-        };
-        Update: {
-          role_id?: string;
-          permission_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "role_permissions_role_id_fkey";
-            columns: ["role_id"];
-            referencedRelation: "roles";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "role_permissions_permission_id_fkey";
-            columns: ["permission_id"];
-            referencedRelation: "permissions";
-            referencedColumns: ["id"];
-          },
-        ];
+        Row: { role_id: string; permission_id: string };
+        Insert: { role_id: string; permission_id: string };
+        Update: { role_id?: string; permission_id?: string };
+        Relationships: [];
       };
       user_roles: {
-        Row: {
-          user_id: string;
-          role_id: string;
-        };
-        Insert: {
-          user_id: string;
-          role_id: string;
-        };
-        Update: {
-          user_id?: string;
-          role_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "user_roles_user_id_fkey";
-            columns: ["user_id"];
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "user_roles_role_id_fkey";
-            columns: ["role_id"];
-            referencedRelation: "roles";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      companies: {
-        Row: {
-          id: string;
-          name: string;
-          industry: string | null;
-          website: string | null;
-          phone: string | null;
-          address: string | null;
-          notes: string | null;
-          assigned_to: string | null;
-          created_by: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          industry?: string | null;
-          website?: string | null;
-          phone?: string | null;
-          address?: string | null;
-          notes?: string | null;
-          assigned_to?: string | null;
-          created_by: string;
-        };
-        Update: {
-          name?: string;
-          industry?: string | null;
-          website?: string | null;
-          phone?: string | null;
-          address?: string | null;
-          notes?: string | null;
-          assigned_to?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "companies_assigned_to_fkey";
-            columns: ["assigned_to"];
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "companies_created_by_fkey";
-            columns: ["created_by"];
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      company_members: {
-        Row: {
-          company_id: string;
-          user_id: string;
-          role: string;
-          created_at: string;
-        };
-        Insert: {
-          company_id: string;
-          user_id: string;
-          role?: string;
-        };
-        Update: {
-          role?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "company_members_company_id_fkey";
-            columns: ["company_id"];
-            referencedRelation: "companies";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "company_members_user_id_fkey";
-            columns: ["user_id"];
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      lead_statuses: {
-        Row: {
-          id: string;
-          name: string;
-          slug: string;
-          color: string;
-          position: number;
-          is_win: boolean;
-          is_loss: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          slug: string;
-          color?: string;
-          position: number;
-          is_win?: boolean;
-          is_loss?: boolean;
-        };
-        Update: {
-          name?: string;
-          slug?: string;
-          color?: string;
-          position?: number;
-          is_win?: boolean;
-          is_loss?: boolean;
-        };
+        Row: { user_id: string; role_id: string };
+        Insert: { user_id: string; role_id: string };
+        Update: { user_id?: string; role_id?: string };
         Relationships: [];
       };
-      lead_sources: {
+      // ── OMP Engine Tables ──────────────────────
+      modules: {
         Row: {
           id: string;
           name: string;
-          slug: string;
+          display_name: string;
+          description: string | null;
           icon: string | null;
-          position: number;
+          schema: Json;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
           name: string;
-          slug: string;
+          display_name: string;
+          description?: string | null;
           icon?: string | null;
-          position: number;
+          schema: Json;
         };
         Update: {
           name?: string;
-          slug?: string;
+          display_name?: string;
+          description?: string | null;
           icon?: string | null;
+          schema?: Json;
+        };
+        Relationships: [];
+      };
+      object_types: {
+        Row: {
+          id: string;
+          name: string;
+          display_name: string;
+          description: string | null;
+          icon: string | null;
+          color: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          display_name: string;
+          description?: string | null;
+          icon?: string | null;
+          color?: string | null;
+        };
+        Update: {
+          name?: string;
+          display_name?: string;
+          description?: string | null;
+          icon?: string | null;
+          color?: string | null;
+        };
+        Relationships: [];
+      };
+      object_type_modules: {
+        Row: {
+          object_type_id: string;
+          module_id: string;
+          required: boolean;
+          position: number;
+        };
+        Insert: {
+          object_type_id: string;
+          module_id: string;
+          required?: boolean;
+          position?: number;
+        };
+        Update: {
+          required?: boolean;
           position?: number;
         };
         Relationships: [];
       };
-      leads: {
+      objects: {
         Row: {
           id: string;
-          name: string;
-          email: string | null;
-          phone: string | null;
-          company: string | null;
-          company_id: string | null;
-          source_id: string;
-          status_id: string;
-          notes: string | null;
-          assigned_to: string | null;
+          object_type_id: string;
+          owner_id: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
-          name: string;
-          email?: string | null;
-          phone?: string | null;
-          company?: string | null;
-          company_id?: string | null;
-          source_id: string;
-          status_id: string;
-          notes?: string | null;
-          assigned_to?: string | null;
+          object_type_id: string;
+          owner_id?: string | null;
           created_by: string;
         };
         Update: {
-          name?: string;
-          email?: string | null;
-          phone?: string | null;
-          company?: string | null;
-          company_id?: string | null;
-          source_id?: string;
-          status_id?: string;
-          notes?: string | null;
-          assigned_to?: string | null;
+          object_type_id?: string;
+          owner_id?: string | null;
         };
-        Relationships: [
-          {
-            foreignKeyName: "leads_source_id_fkey";
-            columns: ["source_id"];
-            referencedRelation: "lead_sources";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "leads_status_id_fkey";
-            columns: ["status_id"];
-            referencedRelation: "lead_statuses";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "leads_assigned_to_fkey";
-            columns: ["assigned_to"];
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "leads_created_by_fkey";
-            columns: ["created_by"];
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "leads_company_id_fkey";
-            columns: ["company_id"];
-            referencedRelation: "companies";
-            referencedColumns: ["id"];
-          },
-        ];
+        Relationships: [];
+      };
+      object_modules: {
+        Row: {
+          id: string;
+          object_id: string;
+          module_id: string;
+          data: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          object_id: string;
+          module_id: string;
+          data?: Json;
+        };
+        Update: {
+          data?: Json;
+        };
+        Relationships: [];
+      };
+      object_relations: {
+        Row: {
+          id: string;
+          from_object_id: string;
+          to_object_id: string;
+          relation_type: string;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          from_object_id: string;
+          to_object_id: string;
+          relation_type: string;
+          metadata?: Json;
+        };
+        Update: {
+          relation_type?: string;
+          metadata?: Json;
+        };
+        Relationships: [];
+      };
+      role_module_permissions: {
+        Row: {
+          id: string;
+          role_id: string;
+          module_id: string | null;
+          object_type_id: string | null;
+          can_read: boolean;
+          can_write: boolean;
+          can_delete: boolean;
+        };
+        Insert: {
+          id?: string;
+          role_id: string;
+          module_id?: string | null;
+          object_type_id?: string | null;
+          can_read?: boolean;
+          can_write?: boolean;
+          can_delete?: boolean;
+        };
+        Update: {
+          can_read?: boolean;
+          can_write?: boolean;
+          can_delete?: boolean;
+        };
+        Relationships: [];
       };
       audit_logs: {
         Row: {
@@ -361,38 +246,38 @@ export interface Database {
           new_values?: Json | null;
           metadata?: Json;
         };
-        Update: {
-          action?: string;
-          category?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "audit_logs_user_id_fkey";
-            columns: ["user_id"];
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-        ];
+        Update: { action?: string; category?: string };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
     Functions: {
-      leads_count_by_status: {
+      count_objects_by_type: {
         Args: Record<string, never>;
         Returns: {
-          status_id: string;
-          name: string;
-          slug: string;
+          object_type_id: string;
+          type_name: string;
+          display_name: string;
+          icon: string;
           color: string;
-          is_win: boolean;
-          is_loss: boolean;
           count: number;
         }[];
       };
-      leads_monthly_evolution: {
-        Args: Record<string, never>;
+      aggregate_module_field: {
+        Args: {
+          p_module_name: string;
+          p_field_key: string;
+          p_agg_type?: string;
+        };
+        Returns: number;
+      };
+      count_by_module_field: {
+        Args: {
+          p_module_name: string;
+          p_field_key: string;
+        };
         Returns: {
-          month: string;
+          field_value: string;
           count: number;
         }[];
       };

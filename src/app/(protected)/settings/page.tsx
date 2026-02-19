@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Tags, Globe, Shield, Users } from "lucide-react";
+import { Shield, Users } from "lucide-react";
 import { getAuthContext } from "@/lib/permissions/rbac";
 
 export const metadata = {
@@ -8,20 +8,6 @@ export const metadata = {
 };
 
 const settingsLinks = [
-  {
-    label: "Lead Statuses",
-    description: "Manage pipeline stages and status progression",
-    href: "/settings/statuses",
-    icon: <Tags size={24} />,
-    permission: "settings:status:read",
-  },
-  {
-    label: "Lead Sources",
-    description: "Manage where your leads come from",
-    href: "/settings/sources",
-    icon: <Globe size={24} />,
-    permission: "settings:source:read",
-  },
   {
     label: "Roles & Permissions",
     description: "Manage user roles and access control",

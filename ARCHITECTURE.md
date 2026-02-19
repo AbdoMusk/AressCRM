@@ -1,219 +1,50 @@
-# Aress CRM — Architecture & Implementation Plan
+# AressCRM — OMP Composable Business Engine
 
-**Stack:** Next.js 16 (App Router) · Supabase (Auth + Postgres + Realtime) · TypeScript  
-**Date:** 14/02/2026
+**Stack:** Next.js 16 (App Router) · Supabase (Auth + Postgres) · TypeScript · Zod 4  
+**Pattern:** Object-Module-Processor (OMP). Every business record is an **Object**; behaviour is defined by **Modules** attached at runtime. **Processors** operate on module combinations to implement business logic.
 
 ---
 
 ## Table of Contents
 
-1. [Technology Wiring](#1-technology-wiring)
+1. [Philosophy](#1-philosophy)
 2. [Project Structure](#2-project-structure)
 3. [Database Schema](#3-database-schema)
-4. [RBAC Model](#4-rbac-model)
-5. [Service Layer](#5-service-layer)
-6. [Middleware & Permission Enforcement](#6-middleware--permission-enforcement)
-7. [Audit Logging](#7-audit-logging)
-8. [API Design](#8-api-design)
-9. [Frontend Architecture](#9-frontend-architecture)
-10. [Realtime Sync](#10-realtime-sync)
-11. [Security](#11-security)
-12. [Testing Strategy](#12-testing-strategy)
-13. [Delivery Plan](#13-delivery-plan)
+4. [RBAC & Permissions](#4-rbac--permissions)
+5. [Engine Module](#5-engine-module)
+6. [Processor Layer](#6-processor-layer)
+7. [API Design](#7-api-design)
+8. [Frontend Architecture](#8-frontend-architecture)
+9. [Supabase Client Setup](#9-supabase-client-setup)
+10. [Audit Logging](#10-audit-logging)
+11. [Key Conventions](#11-key-conventions)
 
 ---
 
-## 1. Technology Wiring
+## 1. Philosophy
 
-### 1.1 Supabase Client Setup
+AressCRM is **not** a traditional CRM with hardcoded tables for contacts, companies, and deals. Instead it is a **composable business engine** inspired by:
 
-Next.js 16 with App Router requires **three distinct Supabase client factories** using `@supabase/ssr` (NOT the deprecated `@supabase/auth-helpers-nextjs`).
+| Inspiration | What we borrowed |
+|---|---|
+| **Salesforce** | Configurable object model — admins define object types and fields |
+| **Shopify** | Clean data → query → mutation separation |
+| **Game Engine ECS** | Objects are IDs; Modules carry data & schema; Processors act on module sets |
 
-#### Browser Client — `lib/supabase/client.ts`
+### Core Concepts
 
-Used exclusively in Client Components (`"use client"`).
+- **Object** — A UUID row. Has no inherent fields except a type and owner.
+- **Module** — A named behaviour block with a JSONB schema (e.g. `identity`, `organization`, `monetary`, `stage`, `assignment`). Modules define fields, validation rules, and defaults.
+- **Object Type** — A template that declares which modules an object must (required) or may (optional) have. Example: a *Contact* requires `identity`; a *Deal* requires `identity` + `monetary` + `stage`.
+- **Processor** — A stateless business-logic unit that operates on objects based on their **module composition**, not their type. A ReportingProcessor acts on any object with a `monetary` module, regardless of whether it's a Deal, Invoice, or custom type.
+- **Relation** — A typed, directed edge between two objects (e.g. *works_for*, *parent_of*).
 
-```ts
-import { createBrowserClient } from "@supabase/ssr";
-import type { Database } from "@/lib/supabase/database.types";
+### Why OMP?
 
-export function createClient() {
-  return createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
-```
-
-#### Server Client — `lib/supabase/server.ts`
-
-Used in Server Components, Server Actions, and Route Handlers. Reads/writes cookies via `next/headers`.
-
-```ts
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import type { Database } from "@/lib/supabase/database.types";
-
-export async function createClient() {
-  const cookieStore = await cookies();
-
-  return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Called from Server Component — ignore (cookies are read-only there).
-            // The middleware will handle the refresh.
-          }
-        },
-      },
-    }
-  );
-}
-```
-
-#### Middleware Client — `lib/supabase/middleware.ts`
-
-Used in `middleware.ts` to refresh the session on every request. This is the **session gate** — it ensures expired tokens are refreshed before they reach any page or API route.
-
-```ts
-import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
-
-export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
-
-  // IMPORTANT: Do NOT call supabase.auth.getSession() — it doesn't
-  // refresh the token. Always use getUser() which validates the JWT.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Redirect unauthenticated users to /login (except public routes)
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth")
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
-  }
-
-  return supabaseResponse;
-}
-```
-
-#### Root Middleware — `middleware.ts`
-
-```ts
-import { updateSession } from "@/lib/supabase/middleware";
-import type { NextRequest } from "next/server";
-
-export async function middleware(request: NextRequest) {
-  return await updateSession(request);
-}
-
-export const config = {
-  matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static, _next/image (static assets)
-     * - favicon.ico, sitemap.xml, robots.txt
-     */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap\\.xml|robots\\.txt).*)",
-  ],
-};
-```
-
-### 1.2 Auth Callback Route — `app/auth/callback/route.ts`
-
-Handles the OAuth/Magic Link redirect. Exchanges the `code` param for a session.
-
-```ts
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-
-export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
-
-  if (code) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
-    }
-  }
-
-  return NextResponse.redirect(`${origin}/login?error=auth_failed`);
-}
-```
-
-### 1.3 Environment Variables
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>   # server-only, never exposed
-```
-
-### 1.4 Key Dependencies
-
-```json
-{
-  "dependencies": {
-    "next": "^16.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "@supabase/supabase-js": "^2.49.0",
-    "@supabase/ssr": "^0.6.0",
-    "@dnd-kit/core": "^6.0.0",
-    "@dnd-kit/sortable": "^10.0.0",
-    "recharts": "^2.15.0",
-    "zod": "^3.24.0",
-    "tailwindcss": "^4.0.0",
-    "clsx": "^2.1.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0",
-    "@testing-library/react": "^16.0.0",
-    "supabase": "^2.15.0"
-  }
-}
-```
+1. **Zero-code extensibility** — Add a new business object (e.g. Ticket, Project) by creating a new Object Type and attaching existing modules. No migration needed.
+2. **Composability** — A Contact can gain `monetary` data later without a schema change. Processors automatically start acting on it.
+3. **Uniform operations** — One service layer, one API surface, one UI form builder for *all* objects.
+4. **Smart business logic** — Processors respond to module composition: `if (object.has(MonetaryModule))` NOT `if (object.type === "deal")`.
 
 ---
 
@@ -221,1647 +52,418 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>   # server-only, never exposed
 
 ```
 src/
-├── app/
-│   ├── layout.tsx                    # Root layout (Server Component)
-│   ├── page.tsx                      # Redirect to /dashboard
-│   ├── (auth)/
-│   │   ├── login/page.tsx            # Login page
-│   │   └── layout.tsx                # Auth layout (no sidebar)
-│   ├── (protected)/
-│   │   ├── layout.tsx                # App shell: sidebar + topbar (Server Component)
-│   │   ├── dashboard/page.tsx        # Dashboard
-│   │   ├── leads/
-│   │   │   ├── page.tsx              # Leads list (table view)
-│   │   │   └── [id]/page.tsx         # Lead detail/edit
-│   │   ├── pipeline/page.tsx         # Kanban board
-│   │   └── settings/
-│   │       ├── page.tsx              # Settings overview
-│   │       ├── statuses/page.tsx     # Manage lead statuses
-│   │       ├── sources/page.tsx      # Manage lead sources
-│   │       └── roles/page.tsx        # Manage roles & permissions
-│   ├── api/
-│   │   ├── leads/
-│   │   │   ├── route.ts              # GET (list), POST (create)
-│   │   │   └── [id]/route.ts         # GET, PATCH, DELETE per lead
-│   │   └── settings/
-│   │       ├── statuses/route.ts     # CRUD lead statuses
-│   │       └── sources/route.ts      # CRUD lead sources
-│   └── auth/
-│       └── callback/route.ts         # OAuth callback
-│
-├── modules/
-│   ├── leads/
-│   │   ├── services/
-│   │   │   └── lead.service.ts       # Business logic for leads
-│   │   ├── actions/
-│   │   │   └── lead.actions.ts       # Server Actions (thin wrappers)
-│   │   ├── components/
-│   │   │   ├── LeadForm.tsx          # Create/Edit form
-│   │   │   ├── LeadTable.tsx         # Table view
-│   │   │   ├── LeadCard.tsx          # Kanban card
-│   │   │   └── LeadFilters.tsx       # Filter controls
-│   │   ├── hooks/
-│   │   │   ├── useLeads.ts           # Client-side data hook
-│   │   │   └── useLeadRealtime.ts    # Realtime subscription hook
-│   │   ├── schemas/
-│   │   │   └── lead.schema.ts        # Zod validation schemas
-│   │   └── types/
-│   │       └── lead.types.ts         # TypeScript interfaces
-│   │
-│   ├── pipeline/
-│   │   ├── components/
-│   │   │   ├── KanbanBoard.tsx       # Board container
-│   │   │   └── KanbanColumn.tsx      # Status column
-│   │   └── hooks/
-│   │       └── usePipeline.ts        # Pipeline-specific logic
-│   │
-│   ├── dashboard/
-│   │   ├── services/
-│   │   │   └── dashboard.service.ts  # Aggregation queries
-│   │   └── components/
-│   │       ├── StatsCards.tsx         # KPI cards
-│   │       ├── StatusChart.tsx        # Leads by status chart
-│   │       └── MonthlyChart.tsx      # Monthly evolution chart
-│   │
-│   ├── auth/
-│   │   ├── services/
-│   │   │   └── auth.service.ts       # Auth logic + login/logout audit
-│   │   ├── components/
-│   │   │   └── LoginForm.tsx         # Login form
-│   │   └── hooks/
-│   │       └── useAuth.ts            # Auth state hook
-│   │
-│   └── settings/
-│       ├── services/
-│       │   ├── status.service.ts     # CRUD for lead_statuses
-│       │   └── source.service.ts     # CRUD for lead_sources
-│       ├── actions/
-│       │   ├── status.actions.ts     # Server Actions for statuses
-│       │   └── source.actions.ts     # Server Actions for sources
-│       ├── components/
-│       │   ├── StatusManager.tsx      # Status CRUD UI
-│       │   └── SourceManager.tsx      # Source CRUD UI
-│       ├── schemas/
-│       │   └── settings.schema.ts    # Zod schemas for settings
-│       └── types/
-│           └── settings.types.ts     # TypeScript interfaces
-│
+├── app/                          # Next.js App Router pages
+│   ├── (auth)/                   # Login / Signup (public)
+│   ├── (protected)/              # Authenticated pages
+│   │   ├── dashboard/            # Aggregated stats
+│   │   ├── objects/              # Object list, create, detail
+│   │   │   ├── page.tsx          # List all objects (filterable by type)
+│   │   │   ├── new/page.tsx      # Create object form
+│   │   │   └── [id]/page.tsx     # Object detail (view, edit, relations)
+│   │   ├── registry/page.tsx     # Admin: manage Modules & Object Types
+│   │   └── settings/             # Roles, Users
+│   └── api/                      # REST route handlers
+│       ├── objects/              # CRUD + module attach/detach
+│       ├── modules/              # Module definition CRUD
+│       ├── object-types/         # Object Type CRUD
+│       ├── dashboard/            # Aggregation queries
+│       └── audit/                # Audit log
+├── components/layout/            # Sidebar, Topbar, LogoutButton
 ├── lib/
-│   ├── supabase/
-│   │   ├── client.ts                 # Browser client factory
-│   │   ├── server.ts                 # Server client factory
-│   │   ├── middleware.ts             # Middleware client + session refresh
-│   │   ├── admin.ts                  # Service-role client (admin ops)
-│   │   └── database.types.ts         # Generated types (supabase gen types)
+│   ├── audit/logger.ts           # auditLog() helper
 │   ├── permissions/
-│   │   ├── rbac.ts                   # Permission checker
-│   │   └── actions.ts                # Permission action constants
-│   ├── audit/
-│   │   └── logger.ts                 # Audit log writer
-│   └── utils/
-│       ├── errors.ts                 # AppError class + error codes
-│       └── result.ts                 # Result<T, E> type for service returns
-│
-├── components/
-│   └── ui/                           # Shared UI primitives (Button, Modal, etc.)
-│
-├── middleware.ts                      # Root Next.js middleware
-└── types/
-    └── global.d.ts                   # Global type augmentations
+│   │   ├── actions.ts            # Permission constants (OMP actions)
+│   │   └── rbac.ts               # getAuthContext(), requirePermission()
+│   ├── supabase/                 # Client factories (browser, server, admin)
+│   └── utils/                    # AppError, API helpers
+├── modules/
+│   ├── engine/                   # ★ Core OMP module
+│   │   ├── types/                # TypeScript interfaces
+│   │   ├── schemas/              # Zod validators (dynamic + static)
+│   │   ├── services/             # Pure async service functions
+│   │   ├── actions/              # Server Actions (thin wrappers)
+│   │   ├── processors/           # ★ Processor layer (business logic)
+│   │   └── components/           # React UI: DynamicForm, ObjectList, etc.
+│   ├── auth/                     # Auth service, login/signup forms
+│   ├── audit/                    # AuditLogViewer
+│   ├── roles/                    # Role management
+│   └── users/                    # User management
+└── types/global.d.ts             # Global TS helpers (TableRow, ActionResult)
 ```
-
-**Design rationale:**
-
-- **`modules/`** follows **domain-driven grouping** — each feature owns its services, components, hooks, schemas, and types. This prevents cross-domain coupling and makes features independently portable.
-- **`app/`** is thin — pages are composition shells that delegate to module components.
-- **`lib/`** holds cross-cutting infrastructure (Supabase clients, RBAC, audit).
-- Server Actions in `modules/*/actions/` are thin wrappers that validate input → check permissions → call services → log audit.
 
 ---
 
 ## 3. Database Schema
 
-### 3.1 Entity Relationship
+### Migration: `005_rename_omp.sql`
 
-```
-auth.users (Supabase managed)
-    │
-    ├──< profiles (1:1)
-    │       │
-    │       ├──< user_roles (M:M with roles)
-    │       │       │
-    │       │       └──> roles
-    │       │              │
-    │       │              └──< role_permissions (M:M with permissions)
-    │       │                      │
-    │       │                      └──> permissions
-    │       │
-    │       └──< leads (1:M — assigned_to / created_by)
-    │               │
-    │               ├──> lead_statuses (M:1 — dynamic lookup)
-    │               │
-    │               └──> lead_sources  (M:1 — dynamic lookup)
-    │
-    └──< audit_logs (1:M — actor; tracks ALL platform actions)
+Seven core tables form the OMP engine (renamed from ECS tables in migration 005):
 
-lead_statuses   (dynamic lookup table — CRUD at runtime)
-lead_sources    (dynamic lookup table — CRUD at runtime)
-```
+| Table | Purpose |
+|---|---|
+| `modules` | Module definitions with JSONB schema |
+| `object_types` | Templates (contact, company, deal, …) |
+| `object_type_modules` | M:N mapping: which modules belong to which type |
+| `objects` | Every business record — just a UUID + type + owner |
+| `object_modules` | Instance data: one row per module attached to an object |
+| `object_relations` | Directed typed edges between objects |
+| `role_module_permissions` | Per-role, per-module read/write/delete flags |
 
-> **Design decision:** `lead_statuses`, `lead_sources`, and `roles` are **not** Postgres enums.
-> They are first-class tables with full CRUD. Any configurable value on the platform
-> (statuses, sources, roles, permissions) can be created, updated, or deleted at runtime
-> through the settings UI without a migration.
+### Key Design Decisions
 
-### 3.2 SQL Definitions
+- **JSONB for module data** — `object_modules.data` stores all fields for a module instance.  
+  A GIN index (`idx_object_modules_data`) enables efficient JSONB queries.
+- **Schema-in-DB** — `modules.schema` stores a `ModuleSchema` JSON object: `{ fields: [{ key, type, label, required, default, options, ... }] }`. The UI reads this to render forms dynamically.
+- **RLS policies** on every table; admin client (`service_role`) bypasses RLS for cross-tenant operations.
+- **Helper functions** in SQL: `count_objects_by_type()`, `aggregate_module_field()`, `count_by_module_field()`.
 
-```sql
--- ============================================================
--- DYNAMIC LOOKUP TABLES (replace static enums)
--- ============================================================
+### Seed Data (5 Modules, 3 Object Types)
 
--- Lead statuses — fully dynamic, managed via settings UI.
--- `position` controls display order (Kanban column order, dropdowns).
--- `is_win` / `is_loss` flags let the dashboard compute conversion rates
--- without hardcoding status names.
-CREATE TABLE lead_statuses (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        TEXT NOT NULL UNIQUE,          -- display label: 'New', 'Contacted', …
-  slug        TEXT NOT NULL UNIQUE,          -- machine key: 'new', 'contacted', …
-  color       TEXT DEFAULT '#6B7280',        -- hex color for Kanban column / badge
-  position    INT  NOT NULL DEFAULT 0,       -- ordering index
-  is_win      BOOLEAN NOT NULL DEFAULT false,-- marks terminal "won" statuses
-  is_loss     BOOLEAN NOT NULL DEFAULT false,-- marks terminal "lost" statuses
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+**Modules:**
+- `identity` — first_name, last_name, email, phone, title
+- `organization` — company_name, industry, website, size, address
+- `monetary` — amount, currency, probability
+- `stage` — stage (select: lead/qualified/proposal/negotiation/closed_won/closed_lost), priority, expected_close_date
+- `assignment` — assigned_to, team, notes
 
--- Lead sources — fully dynamic.
-CREATE TABLE lead_sources (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        TEXT NOT NULL UNIQUE,          -- display label: 'LinkedIn', 'Referral', …
-  slug        TEXT NOT NULL UNIQUE,          -- machine key: 'linkedin', 'referral', …
-  icon        TEXT,                          -- optional icon identifier
-  position    INT  NOT NULL DEFAULT 0,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- ============================================================
--- PROFILES (extends auth.users)
--- ============================================================
-CREATE TABLE profiles (
-  id          UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  full_name   TEXT NOT NULL,
-  avatar_url  TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- Auto-create profile on user signup
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, full_name)
-  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data ->> 'full_name', NEW.email));
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
-
--- ============================================================
--- ROLES & PERMISSIONS (RBAC)
--- ============================================================
-CREATE TABLE roles (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        TEXT NOT NULL UNIQUE,       -- 'admin', 'manager', 'sales_rep'
-  description TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE permissions (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  action      TEXT NOT NULL UNIQUE,       -- 'lead:create', 'lead:update', etc.
-  description TEXT
-);
-
-CREATE TABLE role_permissions (
-  role_id       UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-  permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-  PRIMARY KEY (role_id, permission_id)
-);
-
-CREATE TABLE user_roles (
-  user_id  UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  role_id  UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-  PRIMARY KEY (user_id, role_id)
-);
-
--- ============================================================
--- LEADS
--- ============================================================
-CREATE TABLE leads (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name         TEXT NOT NULL,
-  email        TEXT,
-  phone        TEXT,
-  company      TEXT,
-  source_id    UUID NOT NULL REFERENCES lead_sources(id),
-  status_id    UUID NOT NULL REFERENCES lead_statuses(id),
-  notes        TEXT,
-  assigned_to  UUID REFERENCES profiles(id) ON DELETE SET NULL,
-  created_by   UUID NOT NULL REFERENCES profiles(id),
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- ============================================================
--- AUDIT LOGS — platform-wide, not just leads
--- ============================================================
--- Tracks EVERY sensitive action: auth events, data mutations,
--- settings changes, role/permission changes, profile updates.
-CREATE TABLE audit_logs (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID REFERENCES profiles(id),            -- NULL for system events (e.g., failed login before profile exists)
-  action      TEXT NOT NULL,                           -- e.g., 'auth:login', 'lead:create', 'settings:status:delete'
-  category    TEXT NOT NULL DEFAULT 'data',            -- 'auth' | 'data' | 'settings' | 'admin' — for filtering
-  entity_type TEXT,                                    -- 'lead', 'profile', 'lead_status', 'role', NULL for auth events
-  entity_id   UUID,                                    -- ID of affected record (NULL for auth events)
-  old_values  JSONB,                                   -- snapshot before change
-  new_values  JSONB,                                   -- snapshot after change
-  metadata    JSONB DEFAULT '{}'::jsonb,               -- IP address, user agent, session ID, etc.
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- ============================================================
--- INDEXES
--- ============================================================
--- Leads: most common queries are by status, assigned user, and creation date
-CREATE INDEX idx_leads_status ON leads(status_id);
-CREATE INDEX idx_leads_source ON leads(source_id);
-CREATE INDEX idx_leads_assigned_to ON leads(assigned_to);
-CREATE INDEX idx_leads_created_at ON leads(created_at DESC);
-CREATE INDEX idx_leads_created_by ON leads(created_by);
-
--- Lookup tables: ordering
-CREATE INDEX idx_lead_statuses_position ON lead_statuses(position);
-CREATE INDEX idx_lead_sources_position ON lead_sources(position);
-
--- Audit logs: query by entity, user, category, and time
-CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
-CREATE INDEX idx_audit_logs_user ON audit_logs(user_id);
-CREATE INDEX idx_audit_logs_category ON audit_logs(category);
-CREATE INDEX idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
-
--- RBAC: permission lookups
-CREATE INDEX idx_user_roles_user ON user_roles(user_id);
-CREATE INDEX idx_role_permissions_role ON role_permissions(role_id);
-
--- ============================================================
--- UPDATED_AT TRIGGER
--- ============================================================
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER set_leads_updated_at
-  BEFORE UPDATE ON leads
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
-CREATE TRIGGER set_profiles_updated_at
-  BEFORE UPDATE ON profiles
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
-CREATE TRIGGER set_lead_statuses_updated_at
-  BEFORE UPDATE ON lead_statuses
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
-CREATE TRIGGER set_lead_sources_updated_at
-  BEFORE UPDATE ON lead_sources
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-```
-
-### 3.3 Seed Data — Statuses, Sources, Roles & Permissions
-
-```sql
--- ============================================================
--- DEFAULT LEAD STATUSES
--- ============================================================
-INSERT INTO lead_statuses (name, slug, color, position, is_win, is_loss) VALUES
-  ('New',         'new',         '#3B82F6', 0, false, false),
-  ('Contacted',   'contacted',   '#8B5CF6', 1, false, false),
-  ('Interested',  'interested',  '#F59E0B', 2, false, false),
-  ('Negotiation', 'negotiation', '#F97316', 3, false, false),
-  ('Won',         'won',         '#10B981', 4, true,  false),
-  ('Lost',        'lost',        '#EF4444', 5, false, true);
-
--- ============================================================
--- DEFAULT LEAD SOURCES
--- ============================================================
-INSERT INTO lead_sources (name, slug, position) VALUES
-  ('LinkedIn',   'linkedin',   0),
-  ('Referral',   'referral',   1),
-  ('Cold Call',  'cold_call',  2),
-  ('Website',    'website',    3),
-  ('Event',      'event',      4),
-  ('Other',      'other',      5);
-
--- ============================================================
--- ROLES
--- ============================================================
-INSERT INTO roles (name, description) VALUES
-  ('admin',     'Full system access'),
-  ('manager',   'Manage leads and view dashboard'),
-  ('sales_rep', 'Create and edit own leads');
-
--- ============================================================
--- PERMISSIONS
--- ============================================================
-INSERT INTO permissions (action, description) VALUES
-  -- Lead actions
-  ('lead:create',     'Create a new lead'),
-  ('lead:read',       'View leads'),
-  ('lead:update',     'Edit any lead'),
-  ('lead:update:own', 'Edit only own leads'),
-  ('lead:delete',     'Delete any lead'),
-  ('lead:move',       'Change lead status'),
-  -- Dashboard
-  ('dashboard:view',  'View dashboard analytics'),
-  -- Settings (lookup tables)
-  ('settings:status:read',   'View lead statuses'),
-  ('settings:status:create', 'Create lead statuses'),
-  ('settings:status:update', 'Edit lead statuses'),
-  ('settings:status:delete', 'Delete lead statuses'),
-  ('settings:source:read',   'View lead sources'),
-  ('settings:source:create', 'Create lead sources'),
-  ('settings:source:update', 'Edit lead sources'),
-  ('settings:source:delete', 'Delete lead sources'),
-  -- Admin
-  ('user:manage',     'Manage users and roles'),
-  ('role:manage',     'Create/edit/delete roles and permissions'),
-  ('audit:view',      'View audit logs');
-
--- Admin gets everything
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM roles r, permissions p
-WHERE r.name = 'admin';
-
--- Manager — leads + dashboard + settings (read) + audit
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM roles r, permissions p
-WHERE r.name = 'manager'
-  AND p.action IN (
-    'lead:create','lead:read','lead:update','lead:delete','lead:move',
-    'dashboard:view','audit:view',
-    'settings:status:read','settings:source:read'
-  );
-
--- Sales rep — own leads + dashboard
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM roles r, permissions p
-WHERE r.name = 'sales_rep'
-  AND p.action IN (
-    'lead:create','lead:read','lead:update:own','lead:move',
-    'dashboard:view',
-    'settings:status:read','settings:source:read'
-  );
-```
+**Object Types:**
+- `contact` — requires: identity
+- `company` — requires: organization
+- `deal` — requires: identity, monetary, stage; optional: assignment
 
 ---
 
-## 4. RBAC Model
+## 4. RBAC & Permissions
 
-### 4.1 Permission Action Constants — `lib/permissions/actions.ts`
+### Architecture
 
-```ts
-export const Actions = {
-  // Lead actions
-  LEAD_CREATE:     "lead:create",
-  LEAD_READ:       "lead:read",
-  LEAD_UPDATE:     "lead:update",
-  LEAD_UPDATE_OWN: "lead:update:own",
-  LEAD_DELETE:     "lead:delete",
-  LEAD_MOVE:       "lead:move",
-
-  // Dashboard
-  DASHBOARD_VIEW:  "dashboard:view",
-
-  // Settings — Lead Statuses
-  SETTINGS_STATUS_READ:   "settings:status:read",
-  SETTINGS_STATUS_CREATE: "settings:status:create",
-  SETTINGS_STATUS_UPDATE: "settings:status:update",
-  SETTINGS_STATUS_DELETE: "settings:status:delete",
-
-  // Settings — Lead Sources
-  SETTINGS_SOURCE_READ:   "settings:source:read",
-  SETTINGS_SOURCE_CREATE: "settings:source:create",
-  SETTINGS_SOURCE_UPDATE: "settings:source:update",
-  SETTINGS_SOURCE_DELETE: "settings:source:delete",
-
-  // Admin
-  USER_MANAGE:     "user:manage",
-  ROLE_MANAGE:     "role:manage",
-  AUDIT_VIEW:      "audit:view",
-} as const;
-
-export type Action = (typeof Actions)[keyof typeof Actions];
-
-/**
- * Audit-only actions — these are not permissions but action identifiers
- * used exclusively in audit_logs for tracking auth / system events.
- * They are never checked via requirePermission().
- */
-export const AuditActions = {
-  AUTH_LOGIN:          "auth:login",
-  AUTH_LOGOUT:         "auth:logout",
-  AUTH_LOGIN_FAILED:   "auth:login_failed",
-  AUTH_PASSWORD_RESET: "auth:password_reset",
-  AUTH_SIGNUP:         "auth:signup",
-  PROFILE_UPDATE:      "profile:update",
-} as const;
+```
+Request → getAuthContext() → requirePermission(ctx, action) → service(ctx, data) → auditLog()
 ```
 
-### 4.2 Permission Checker — `lib/permissions/rbac.ts`
-
+`AuthContext` carries:
 ```ts
-import { createClient } from "@/lib/supabase/server";
-import type { Action } from "./actions";
-
-export interface AuthContext {
+{
   userId: string;
+  roleId: string;
+  roleName: string;
   permissions: Set<string>;
-}
-
-/**
- * Loads the authenticated user's permissions from the database.
- * Designed to be called once per request and passed through the call chain.
- */
-export async function getAuthContext(): Promise<AuthContext | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  // Single query joining user_roles → role_permissions → permissions
-  const { data: perms } = await supabase
-    .from("user_roles")
-    .select("roles:role_id ( role_permissions ( permissions:permission_id ( action ) ) )")
-    .eq("user_id", user.id);
-
-  const permissions = new Set<string>();
-  perms?.forEach((ur: any) => {
-    ur.roles?.role_permissions?.forEach((rp: any) => {
-      if (rp.permissions?.action) permissions.add(rp.permissions.action);
-    });
-  });
-
-  return { userId: user.id, permissions };
-}
-
-/**
- * Checks if the auth context has a specific permission.
- */
-export function hasPermission(ctx: AuthContext, action: Action): boolean {
-  return ctx.permissions.has(action);
-}
-
-/**
- * Throws if permission is missing. Used as a guard at the top of service methods.
- */
-export function requirePermission(ctx: AuthContext, action: Action): void {
-  if (!hasPermission(ctx, action)) {
-    throw new AppError("FORBIDDEN", `Missing permission: ${action}`);
-  }
+  modulePermissions: Map<string, ModulePermission>;
 }
 ```
 
-### 4.3 How It's Used
+### OMP Permissions
 
-Every server action / route handler follows this pattern:
+| Permission | Description |
+|---|---|
+| `object:create`, `object:read`, `object:update`, `object:delete` | Object CRUD |
+| `object:read:own`, `object:update:own`, `object:delete:own` | Own-object operations |
+| `module:manage` | Create/edit/delete module definitions |
+| `object_type:manage` | Create/edit/delete object types |
+| `relation:create`, `relation:delete` | Manage object relations |
+| `dashboard:view` | View dashboard stats |
+| `audit:view` | Read audit logs |
+| `settings:manage` | System settings |
+| `user:manage` | Manage users |
+| `role:manage` | Manage roles |
 
-```
-Request → getAuthContext() → requirePermission(ctx, action) → service.method(ctx, data) → auditLog(ctx, ...)
-```
+### Module-Level Permissions
 
-Permissions are checked **per action, not per route**. A single route can require different permissions depending on the operation.
-
----
-
-## 5. Service Layer
-
-### 5.1 Design Principles
-
-- Services are **plain async functions** grouped in modules — no classes (keeps tree-shaking friendly).
-- Services receive `AuthContext` as first argument — they never import auth directly.
-- Services return `Result<T>` or throw `AppError` on failure.
-- Services handle **only business logic** — no HTTP concerns (status codes, headers).
-- Services call `auditLog()` after successful mutations.
-
-### 5.2 Result Type — `lib/utils/result.ts`
-
-```ts
-export type Result<T, E = AppError> =
-  | { success: true; data: T }
-  | { success: false; error: E };
-```
-
-### 5.3 Lead Service — `modules/leads/services/lead.service.ts`
-
-```ts
-import { createClient } from "@/lib/supabase/server";
-import { requirePermission, type AuthContext } from "@/lib/permissions/rbac";
-import { Actions } from "@/lib/permissions/actions";
-import { auditLog } from "@/lib/audit/logger";
-import { leadCreateSchema, leadUpdateSchema } from "../schemas/lead.schema";
-import type { LeadInsert, LeadUpdate, LeadRow } from "../types/lead.types";
-
-export async function getLeads(ctx: AuthContext): Promise<LeadRow[]> {
-  requirePermission(ctx, Actions.LEAD_READ);
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("leads")
-    .select("*, assigned_to_profile:assigned_to(full_name), created_by_profile:created_by(full_name)")
-    .order("created_at", { ascending: false });
-
-  if (error) throw new AppError("DB_ERROR", error.message);
-  return data;
-}
-
-export async function createLead(ctx: AuthContext, input: LeadInsert): Promise<LeadRow> {
-  requirePermission(ctx, Actions.LEAD_CREATE);
-  const validated = leadCreateSchema.parse(input);
-
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("leads")
-    .insert({ ...validated, created_by: ctx.userId })
-    .select()
-    .single();
-
-  if (error) throw new AppError("DB_ERROR", error.message);
-
-  await auditLog(ctx, {
-    action: Actions.LEAD_CREATE,
-    entityType: "lead",
-    entityId: data.id,
-    newValues: data,
-  });
-
-  return data;
-}
-
-export async function updateLead(
-  ctx: AuthContext,
-  id: string,
-  input: LeadUpdate
-): Promise<LeadRow> {
-  // Fetch existing to check ownership and capture old values
-  const supabase = await createClient();
-  const { data: existing } = await supabase.from("leads").select().eq("id", id).single();
-  if (!existing) throw new AppError("NOT_FOUND", "Lead not found");
-
-  // Permission check: need lead:update OR (lead:update:own AND ownership)
-  const canUpdateAny = ctx.permissions.has(Actions.LEAD_UPDATE);
-  const canUpdateOwn = ctx.permissions.has(Actions.LEAD_UPDATE_OWN) && existing.created_by === ctx.userId;
-  if (!canUpdateAny && !canUpdateOwn) {
-    throw new AppError("FORBIDDEN", "Cannot update this lead");
-  }
-
-  const validated = leadUpdateSchema.parse(input);
-
-  const { data, error } = await supabase
-    .from("leads")
-    .update(validated)
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) throw new AppError("DB_ERROR", error.message);
-
-  await auditLog(ctx, {
-    action: Actions.LEAD_UPDATE,
-    entityType: "lead",
-    entityId: id,
-    oldValues: existing,
-    newValues: data,
-  });
-
-  return data;
-}
-
-export async function updateLeadStatus(
-  ctx: AuthContext,
-  id: string,
-  status: string
-): Promise<LeadRow> {
-  requirePermission(ctx, Actions.LEAD_MOVE);
-  return updateLead(ctx, id, { status } as LeadUpdate);
-}
-
-export async function deleteLead(ctx: AuthContext, id: string): Promise<void> {
-  requirePermission(ctx, Actions.LEAD_DELETE);
-  const supabase = await createClient();
-
-  const { data: existing } = await supabase.from("leads").select().eq("id", id).single();
-  if (!existing) throw new AppError("NOT_FOUND", "Lead not found");
-
-  const { error } = await supabase.from("leads").delete().eq("id", id);
-  if (error) throw new AppError("DB_ERROR", error.message);
-
-  await auditLog(ctx, {
-    action: Actions.LEAD_DELETE,
-    entityType: "lead",
-    entityId: id,
-    oldValues: existing,
-  });
-}
-```
-
-### 5.4 Dashboard Service — `modules/dashboard/services/dashboard.service.ts`
-
-```ts
-export async function getDashboardStats(ctx: AuthContext) {
-  requirePermission(ctx, Actions.DASHBOARD_VIEW);
-  const supabase = await createClient();
-
-  // Total leads
-  const { count: total } = await supabase
-    .from("leads")
-    .select("*", { count: "exact", head: true });
-
-  // Leads by status
-  const { data: byStatus } = await supabase
-    .rpc("leads_count_by_status");   // Postgres function for grouped count
-
-  // Conversion rate: uses is_win/is_loss flags from dynamic statuses
-  const won = byStatus?.filter((s: any) => s.is_win).reduce((sum: number, s: any) => sum + Number(s.count), 0) ?? 0;
-  const lost = byStatus?.filter((s: any) => s.is_loss).reduce((sum: number, s: any) => sum + Number(s.count), 0) ?? 0;
-  const conversionRate = won + lost > 0 ? (won / (won + lost)) * 100 : 0;
-
-  // Monthly evolution (last 12 months)
-  const { data: monthly } = await supabase.rpc("leads_monthly_evolution");
-
-  return {
-    total: total ?? 0,
-    byStatus: byStatus ?? [],
-    conversionRate: Math.round(conversionRate * 10) / 10,
-    monthly: monthly ?? [],
-  };
-}
-```
-
-Supporting Postgres functions (join dynamic lookup tables instead of using enums):
-
+The `role_module_permissions` table enables fine-grained access:
 ```sql
--- Leads grouped by status — joins lead_statuses for display name, color, and order.
--- Uses is_win/is_loss flags for dashboard conversion calculations.
-CREATE OR REPLACE FUNCTION leads_count_by_status()
-RETURNS TABLE(status_id UUID, name TEXT, slug TEXT, color TEXT, is_win BOOLEAN, is_loss BOOLEAN, count BIGINT)
-LANGUAGE sql STABLE
-AS $$
-  SELECT
-    ls.id AS status_id,
-    ls.name,
-    ls.slug,
-    ls.color,
-    ls.is_win,
-    ls.is_loss,
-    COUNT(l.id)
-  FROM lead_statuses ls
-  LEFT JOIN leads l ON l.status_id = ls.id
-  GROUP BY ls.id, ls.name, ls.slug, ls.color, ls.is_win, ls.is_loss, ls.position
-  ORDER BY ls.position;
-$$;
-
--- Monthly lead creation (last 12 months)
-CREATE OR REPLACE FUNCTION leads_monthly_evolution()
-RETURNS TABLE(month TEXT, count BIGINT)
-LANGUAGE sql STABLE
-AS $$
-  SELECT
-    to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
-    COUNT(*)
-  FROM leads
-  WHERE created_at >= date_trunc('month', now()) - INTERVAL '11 months'
-  GROUP BY date_trunc('month', created_at)
-  ORDER BY date_trunc('month', created_at);
-$$;
+-- Sales reps can read but not write organization module data
+INSERT INTO role_module_permissions (role_id, module_id, can_read, can_write, can_delete)
+VALUES ('sales_rep_role_id', 'org_module_id', true, false, false);
 ```
 
 ---
 
-## 6. Middleware & Permission Enforcement
+## 5. Engine Module
 
-### 6.1 Two Layers of Enforcement
+### Types (`src/modules/engine/types/`)
 
-| Layer | Purpose | Where |
-|-------|---------|-------|
-| **Next.js Middleware** (`middleware.ts`) | Session refresh + auth redirect | Edge — runs before every request |
-| **Service-level guards** (`requirePermission`) | Granular RBAC per action | Server — inside each service call |
+| Type | Key Fields |
+|---|---|
+| `ModuleSchema` | `{ fields: ModuleFieldDef[] }` — 11 field types supported |
+| `ModuleRowTyped` | DB row with parsed schema |
+| `AttachedModule` | camelCase: `moduleId`, `moduleName`, `displayName`, `schema`, `data` |
+| `ObjectWithModules` | Object row + `object_type` + `modules: AttachedModule[]` + derived `displayName` |
+| `ObjectTypeWithModules` | Object type row + modules array (`module_id`, `module_name`, `display_name`, `required`, `position`) |
+| `ObjectTypeWithSchemas` | Same as above + `schema: ModuleSchema` on each module — used by UI forms |
+| `RelatedObject` | `{ relationId, relationType, direction, object: { id, objectType, displayName } }` |
+| `ObjectCreateInput` | `{ objectTypeId, modules: Record<moduleName, data> }` |
+| `RelationCreateInput` | `{ fromObjectId, toObjectId, relationType }` |
+| `ObjectQueryParams` | `{ objectType?, page?, limit?, filters? }` |
 
-The Next.js middleware does NOT check permissions — it only ensures a valid session exists. Permission checks happen inside the service layer, **per action**, which is more granular and testable.
+### Services (`src/modules/engine/services/`)
 
-### 6.2 Server Actions as Thin Wrappers — `modules/leads/actions/lead.actions.ts`
+Five service files — all pure async functions receiving `AuthContext`:
 
-Server Actions are the "controllers" — they orchestrate auth → validation → service → response.
+| Service | Key Functions |
+|---|---|
+| `module.service.ts` | `getModules`, `getModule`, `createModule`, `updateModule`, `deleteModule` |
+| `object-type.service.ts` | `getObjectTypes`, `getObjectType`, `getObjectTypeByName`, `createObjectType`, `updateObjectType`, `deleteObjectType` |
+| `object.service.ts` | `getObjects` → `{ objects, total }`, `getObject`, `createObject`, `updateObjectModule`, `deleteObject`, `attachModule`, `detachModule` |
+| `relation.service.ts` | `getRelations`, `createRelation`, `deleteRelation` |
+| `query.service.ts` | `getDashboardStats`, `aggregateField`, `countByField` |
 
+### Dynamic Validation (`src/modules/engine/schemas/dynamic-validator.ts`)
+
+At runtime, `buildModuleValidator(schema)` converts a `ModuleSchema` into a Zod object:
 ```ts
-"use server";
-
-import { revalidatePath } from "next/cache";
-import { getAuthContext } from "@/lib/permissions/rbac";
-import * as leadService from "../services/lead.service";
-import type { LeadInsert, LeadUpdate } from "../types/lead.types";
-
-export async function createLeadAction(input: LeadInsert) {
-  const ctx = await getAuthContext();
-  if (!ctx) throw new Error("Unauthorized");
-
-  const lead = await leadService.createLead(ctx, input);
-  revalidatePath("/leads");
-  revalidatePath("/pipeline");
-  revalidatePath("/dashboard");
-  return lead;
-}
-
-export async function updateLeadAction(id: string, input: LeadUpdate) {
-  const ctx = await getAuthContext();
-  if (!ctx) throw new Error("Unauthorized");
-
-  const lead = await leadService.updateLead(ctx, id, input);
-  revalidatePath("/leads");
-  revalidatePath("/pipeline");
-  revalidatePath("/dashboard");
-  return lead;
-}
-
-export async function moveLeadAction(id: string, status: string) {
-  const ctx = await getAuthContext();
-  if (!ctx) throw new Error("Unauthorized");
-
-  const lead = await leadService.updateLeadStatus(ctx, id, status);
-  revalidatePath("/pipeline");
-  revalidatePath("/dashboard");
-  return lead;
-}
-
-export async function deleteLeadAction(id: string) {
-  const ctx = await getAuthContext();
-  if (!ctx) throw new Error("Unauthorized");
-
-  await leadService.deleteLead(ctx, id);
-  revalidatePath("/leads");
-  revalidatePath("/pipeline");
-  revalidatePath("/dashboard");
-}
+const validator = buildModuleValidator(identitySchema);
+const result = validator.safeParse(userInput);
 ```
+
+Each `ModuleFieldType` maps to a Zod type. Required fields become `.min(1)`, selects validate against allowed values, numbers respect `min`/`max`.
+
+### Server Actions (`src/modules/engine/actions/`)
+
+Thin wrappers around services. Each action:
+1. Calls `getAuthContext()`
+2. Delegates to service
+3. Calls `revalidatePath()`
+4. Returns `ActionResult<T>`
 
 ---
 
-## 7. Audit Logging
+## 6. Processor Layer
 
-Audit logs are **platform-wide**. Every sensitive action is logged — not just lead mutations but auth events, settings changes, role/permission changes, profile updates, and any administrative operation.
+### Design Principle
 
-### 7.1 Audit Logger — `lib/audit/logger.ts`
+Processors are **stateless business-logic units** that operate on objects based on their **module composition**, never their object type.
 
 ```ts
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { AuthContext } from "@/lib/permissions/rbac";
+// ✅ Correct — module-based eligibility
+if (object.modules.some(m => m.moduleName === "monetary")) { … }
 
-type AuditCategory = "auth" | "data" | "settings" | "admin";
+// ❌ Wrong — type-based check
+if (object.object_type.name === "deal") { … }
+```
 
-interface AuditEntry {
-  action: string;                    // e.g., 'auth:login', 'lead:create', 'settings:status:delete'
-  category: AuditCategory;           // for filtering in the audit viewer UI
-  entityType?: string;               // 'lead', 'lead_status', 'role', 'profile', etc.
-  entityId?: string;
-  oldValues?: Record<string, any>;
-  newValues?: Record<string, any>;
-  metadata?: Record<string, any>;    // IP, user agent, session ID, etc.
-}
+### Base Processor (`src/modules/engine/processors/base.processor.ts`)
 
-/**
- * Log an audit entry for an authenticated user action.
- */
-export async function auditLog(ctx: AuthContext, entry: AuditEntry): Promise<void> {
-  const supabase = await createClient();
+```ts
+abstract class BaseProcessor<TResult> {
+  abstract spec: ProcessorSpec; // name, description, requiredModules, optionalModules
+  abstract process(ctx: ProcessorContext): Promise<ProcessorResult<TResult>>;
 
-  await supabase.from("audit_logs").insert({
-    user_id: ctx.userId,
-    action: entry.action,
-    category: entry.category,
-    entity_type: entry.entityType ?? null,
-    entity_id: entry.entityId ?? null,
-    old_values: entry.oldValues ?? null,
-    new_values: entry.newValues ?? null,
-    metadata: entry.metadata ?? {},
-  });
-}
-
-/**
- * Log an audit entry for system / unauthenticated events (e.g., failed login).
- * Uses the service-role client to bypass RLS.
- */
-export async function auditLogSystem(entry: AuditEntry & { userId?: string }): Promise<void> {
-  const supabase = createAdminClient();
-
-  await supabase.from("audit_logs").insert({
-    user_id: entry.userId ?? null,
-    action: entry.action,
-    category: entry.category,
-    entity_type: entry.entityType ?? null,
-    entity_id: entry.entityId ?? null,
-    old_values: entry.oldValues ?? null,
-    new_values: entry.newValues ?? null,
-    metadata: entry.metadata ?? {},
-  });
+  isEligible(object: ObjectWithModules): boolean;   // all requiredModules present?
+  getModule(object, moduleName): AttachedModule;     // extract module by name
+  getFieldValue<T>(object, module, field): T;        // extract field value
+  execute(ctx): Promise<ProcessorResult<TResult>>;   // eligibility + error handling
 }
 ```
 
-### 7.2 What Gets Logged
+### Built-in Processors
 
-Audit logging covers **every category of sensitive platform action**:
+| Processor | Required Modules | Optional | Purpose |
+|---|---|---|---|
+| **ReportingProcessor** | `monetary` | `stage`, `identity` | Revenue aggregation, weighted pipeline values, win/loss tracking |
+| **TicketProcessor** | `stage` | `identity`, `notes` | Status transition rules, staleness detection, priority management |
+| **ProjectProcessor** | `organization` + `stage` | `monetary`, `notes` | Health scoring (0-100), completeness analysis, budget tracking |
 
-#### Auth Events (category: `auth`)
-
-| Action | Entity | Old Values | New Values | Metadata |
-|--------|--------|------------|------------|----------|
-| `auth:login` | — | — | `{ method: 'email' }` | IP, user agent |
-| `auth:logout` | — | — | — | session duration |
-| `auth:login_failed` | — | — | `{ email: '...' }` | IP, user agent, reason |
-| `auth:signup` | profile | — | `{ email, full_name }` | IP |
-| `auth:password_reset` | — | — | — | IP |
-
-#### Data Mutations (category: `data`)
-
-| Action | Entity | Old Values | New Values |
-|--------|--------|------------|------------|
-| `lead:create` | lead | — | full lead record |
-| `lead:update` | lead | previous state | new state |
-| `lead:move` | lead | `{ status_id: '...' }` | `{ status_id: '...' }` |
-| `lead:delete` | lead | full lead record | — |
-
-#### Settings Changes (category: `settings`)
-
-| Action | Entity | Old Values | New Values |
-|--------|--------|------------|------------|
-| `settings:status:create` | lead_status | — | `{ name, slug, color }` |
-| `settings:status:update` | lead_status | previous state | new state |
-| `settings:status:delete` | lead_status | full record | — |
-| `settings:source:create` | lead_source | — | `{ name, slug }` |
-| `settings:source:update` | lead_source | previous state | new state |
-| `settings:source:delete` | lead_source | full record | — |
-
-#### Admin Actions (category: `admin`)
-
-| Action | Entity | Old Values | New Values |
-|--------|--------|------------|------------|
-| `role:create` | role | — | `{ name, permissions }` |
-| `role:update` | role | previous permissions | new permissions |
-| `role:delete` | role | full record | — |
-| `user:role_assign` | user_role | — | `{ user_id, role_id }` |
-| `user:role_revoke` | user_role | `{ user_id, role_id }` | — |
-| `profile:update` | profile | previous state | new state |
-
-### 7.3 Auth Event Logging
-
-Auth events are captured via a Supabase **Auth Hook** (webhook) or by wrapping the login/logout flows in the auth service:
+### Processor Registry
 
 ```ts
-// modules/auth/services/auth.service.ts
-import { createClient } from "@/lib/supabase/server";
-import { auditLog, auditLogSystem } from "@/lib/audit/logger";
-import { AuditActions } from "@/lib/permissions/actions";
+import { initProcessors, runProcessors, getEligibleProcessors } from "@/modules/engine/processors";
 
-export async function signIn(email: string, password: string, meta: { ip?: string; userAgent?: string }) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+// Initialize once at startup
+initProcessors();
 
-  if (error) {
-    // Log failed login — no auth context, use system logger
-    await auditLogSystem({
-      action: AuditActions.AUTH_LOGIN_FAILED,
-      category: "auth",
-      newValues: { email },
-      metadata: { ip: meta.ip, userAgent: meta.userAgent, reason: error.message },
-    });
-    throw new AppError("UNAUTHORIZED", "Invalid credentials");
-  }
+// Run all eligible processors on an object
+const results = await runProcessors(authCtx, objectWithModules);
 
-  // Log successful login
-  await auditLogSystem({
-    userId: data.user.id,
-    action: AuditActions.AUTH_LOGIN,
-    category: "auth",
-    newValues: { method: "email" },
-    metadata: { ip: meta.ip, userAgent: meta.userAgent },
-  });
+// Check which processors apply
+const eligible = getEligibleProcessors(objectWithModules);
+```
 
-  return data;
+### Processor Examples
+
+**ReportingProcessor** on a Deal (has `monetary` + `stage`):
+```json
+{
+  "value": 50000,
+  "currency": "USD",
+  "stage": "negotiation",
+  "isClosed": false,
+  "isWon": false,
+  "weightedValue": 35000,
+  "attribution": { "name": "John Doe" }
 }
+```
 
-export async function signOut(ctx: AuthContext) {
-  const supabase = await createClient();
+**TicketProcessor** on a Lead (has `stage`):
+```json
+{
+  "currentStage": "contacted",
+  "validTransitions": ["interested", "negotiation", "lost"],
+  "isTerminal": false,
+  "priority": "medium",
+  "ageDays": 12,
+  "isStale": true
+}
+```
 
-  await auditLog(ctx, {
-    action: AuditActions.AUTH_LOGOUT,
-    category: "auth",
-  });
-
-  await supabase.auth.signOut();
+**ProjectProcessor** on a Deal (has `organization` + `stage`):
+```json
+{
+  "organizationName": "Acme Corp",
+  "healthScore": 72,
+  "healthLabel": "healthy",
+  "completeness": { "percentage": 85 },
+  "daysSinceUpdate": 3
 }
 ```
 
 ---
 
-## 8. API Design
+## 7. API Design
 
-### 8.1 Route Handlers (REST endpoints)
+All endpoints live under `/api/` and follow REST conventions.
 
-Used for programmatic access or external integrations. Server Actions are preferred for forms.
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/objects?type=&page=&limit=` | List objects |
+| POST | `/api/objects` | Create object |
+| GET | `/api/objects/:id` | Get object detail |
+| DELETE | `/api/objects/:id` | Delete object |
+| GET/POST | `/api/modules` | List / Create module definitions |
+| GET/PATCH/DELETE | `/api/modules/:id` | Get / Update / Delete module |
+| GET/POST | `/api/object-types` | List / Create object types |
+| GET/PATCH/DELETE | `/api/object-types/:id` | Get / Update / Delete object type |
+| GET | `/api/dashboard` | Aggregated stats |
+| GET | `/api/dashboard?aggregate=module.field.sum` | Numeric aggregation |
+| GET | `/api/dashboard?countBy=module.field` | Field distribution |
+| GET | `/api/audit` | Audit log |
+
+### Request Flow
 
 ```
-# Leads
-GET    /api/leads          → List leads (paginated, filterable)
-POST   /api/leads          → Create a lead
-GET    /api/leads/:id      → Get lead by ID
-PATCH  /api/leads/:id      → Update lead
-DELETE /api/leads/:id      → Delete lead
-
-# Dashboard
-GET    /api/dashboard      → Get dashboard stats
-
-# Settings — dynamic lookup tables
-GET    /api/settings/statuses       → List lead statuses (ordered)
-POST   /api/settings/statuses       → Create a lead status
-PATCH  /api/settings/statuses/:id   → Update a lead status
-DELETE /api/settings/statuses/:id   → Delete a lead status
-GET    /api/settings/sources        → List lead sources (ordered)
-POST   /api/settings/sources        → Create a lead source
-PATCH  /api/settings/sources/:id    → Update a lead source
-DELETE /api/settings/sources/:id    → Delete a lead source
-
-# Audit
-GET    /api/audit          → List audit logs (paginated, filterable by category)
+Route Handler → getAuthContext() → requirePermission() → service.*() → NextResponse.json()
 ```
 
-#### Example: `app/api/leads/route.ts`
-
-```ts
-import { NextRequest, NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/permissions/rbac";
-import * as leadService from "@/modules/leads/services/lead.service";
-
-export async function GET() {
-  try {
-    const ctx = await getAuthContext();
-    if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const leads = await leadService.getLeads(ctx);
-    return NextResponse.json({ data: leads });
-  } catch (err) {
-    return handleApiError(err);
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const ctx = await getAuthContext();
-    if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const body = await request.json();
-    const lead = await leadService.createLead(ctx, body);
-    return NextResponse.json({ data: lead }, { status: 201 });
-  } catch (err) {
-    return handleApiError(err);
-  }
-}
-
-function handleApiError(err: unknown) {
-  if (err instanceof AppError) {
-    const statusMap = { FORBIDDEN: 403, NOT_FOUND: 404, VALIDATION: 422, DB_ERROR: 500 };
-    return NextResponse.json(
-      { error: err.message, code: err.code },
-      { status: statusMap[err.code] ?? 500 }
-    );
-  }
-  return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-}
-```
-
-### 8.2 Server Actions vs Route Handlers
-
-| Mechanism | Use Case |
-|-----------|----------|
-| **Server Actions** | Form submissions, UI mutations (create/update/delete lead, move status) |
-| **Route Handlers** | External API access, webhook endpoints, data fetching for client components |
-
-Server Actions are the **primary mutation path** — they integrate with `revalidatePath` and `useActionState`.
+All errors return `{ error: string }` with appropriate HTTP status codes.
 
 ---
 
-## 9. Frontend Architecture
+## 8. Frontend Architecture
 
-### 9.1 Data Fetching Strategy
+### Dynamic Form Builder
 
-| Context | Method | Example |
-|---------|--------|---------|
-| **Server Component (page)** | Direct service call via `createClient()` | Dashboard stats, lead list (initial load) |
-| **Client Component (mutation)** | Server Action via `useActionState` | Create/edit/delete lead |
-| **Client Component (realtime)** | Supabase browser client subscription | Kanban board live updates |
+The UI **never** hardcodes field names. Instead:
 
-#### Server Component Fetching (Dashboard Page)
+1. `ModuleSchema` defines fields (type, label, required, options, etc.)
+2. `DynamicField` renders the correct input control for each field type
+3. `DynamicForm` maps a schema's fields array to `DynamicField` components
+4. `ObjectCreateForm` loads `ObjectTypeWithSchemas[]`, shows forms per module
+5. `ObjectEditForm` shows existing `AttachedModule` data for editing
 
-```tsx
-// app/(protected)/dashboard/page.tsx — Server Component
-import { getAuthContext } from "@/lib/permissions/rbac";
-import { getDashboardStats } from "@/modules/dashboard/services/dashboard.service";
-import { StatsCards } from "@/modules/dashboard/components/StatsCards";
-import { StatusChart } from "@/modules/dashboard/components/StatusChart";
-import { MonthlyChart } from "@/modules/dashboard/components/MonthlyChart";
+### Key UI Components (`src/modules/engine/components/`)
 
-export default async function DashboardPage() {
-  const ctx = await getAuthContext();
-  if (!ctx) redirect("/login");
+| Component | Purpose |
+|---|---|
+| `DynamicField` | Renders one field: text, email, phone, number, date, select, multiselect, boolean, textarea, url |
+| `DynamicForm` | Renders all fields for one module schema |
+| `ObjectCreateForm` | Full creation flow: pick type → fill module forms → submit |
+| `ObjectEditForm` | Edit existing object's module data; attach/detach optional modules |
+| `ObjectDetailView` | Read-only display of object module data |
+| `ObjectList` | Table view with type filter |
+| `RelationManager` | View/create/delete relations; search objects to link |
+| `ModuleManager` | Admin: CRUD for module definitions with field builder |
+| `ObjectTypeManager` | Admin: CRUD for object types + module assignment |
+| `DashboardView` | Stat cards: total objects, by type, recent activity |
 
-  const stats = await getDashboardStats(ctx);
+### Styling
 
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
-      <StatsCards total={stats.total} conversionRate={stats.conversionRate} byStatus={stats.byStatus} />
-      <div className="grid grid-cols-2 gap-6">
-        <StatusChart data={stats.byStatus} />
-        <MonthlyChart data={stats.monthly} />
-      </div>
-    </div>
-  );
-}
+- **Tailwind CSS v4** with dark mode (`dark:` classes)
+- Shared style constants via `tw` object in `DynamicField.tsx`
+- No component library — all custom UI
+- Responsive: mobile-first with `sm:`/`lg:` breakpoints
+
+### Sidebar
+
+Dynamic sidebar reads object types from the database and renders shortcuts:
 ```
-
-### 9.2 Kanban Board — Client Component with Realtime
-
-```tsx
-// modules/pipeline/components/KanbanBoard.tsx
-"use client";
-
-import { useEffect, useState } from "react";
-import { DndContext, type DragEndEvent } from "@dnd-kit/core";
-import { createClient } from "@/lib/supabase/client";
-import { moveLeadAction } from "@/modules/leads/actions/lead.actions";
-import { KanbanColumn } from "./KanbanColumn";
-import type { LeadRow } from "@/modules/leads/types/lead.types";
-
-// Statuses are fetched from the database — not hardcoded.
-// The server page queries lead_statuses ordered by `position`
-// and passes them as a prop.
-interface StatusColumn {
-  id: string;
-  name: string;
-  slug: string;
-  color: string;
-  position: number;
-}
-
-interface Props {
-  initialLeads: LeadRow[];
-  statuses: StatusColumn[];   // dynamic — from lead_statuses table
-}
-
-export function KanbanBoard({ initialLeads, statuses }: Props) {
-  const [leads, setLeads] = useState(initialLeads);
-
-  // Realtime subscription
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel("leads-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "leads" },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-            setLeads((prev) => [payload.new as LeadRow, ...prev]);
-          } else if (payload.eventType === "UPDATE") {
-            setLeads((prev) =>
-              prev.map((l) => (l.id === payload.new.id ? (payload.new as LeadRow) : l))
-            );
-          } else if (payload.eventType === "DELETE") {
-            setLeads((prev) => prev.filter((l) => l.id !== payload.old.id));
-          }
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  async function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const leadId = active.id as string;
-    const newStatus = over.id as string;
-
-    const newStatusId = over.id as string;
-
-    // Optimistic update
-    setLeads((prev) =>
-      prev.map((l) => (l.id === leadId ? { ...l, status_id: newStatusId } : l))
-    );
-
-    try {
-      await moveLeadAction(leadId, newStatusId);
-    } catch {
-      // Revert on failure — realtime will also reconcile
-      setLeads((prev) =>
-        prev.map((l) => (l.id === leadId ? initialLeads.find((il) => il.id === leadId)! : l))
-      );
-    }
-  }
-
-  return (
-    <DndContext onDragEnd={handleDragEnd}>
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {statuses.map((status) => (
-          <KanbanColumn
-            key={status.id}
-            status={status}
-            leads={leads.filter((l) => l.status_id === status.id)}
-          />
-        ))}
-      </div>
-    </DndContext>
-  );
-}
-```
-
-### 9.3 How User Data Is Fetched Without Breaking Caching
-
-In Next.js 16 App Router, user-specific data must be fetched in **Server Components using cookies**, which makes the route **dynamically rendered** (not cached). This is correct and expected for authenticated pages.
-
-```
-(protected)/layout.tsx → getAuthContext() → passes userId, permissions down via props or context
-```
-
-We do NOT put user data in `generateStaticParams` or try to cache it. Authenticated pages are always dynamic.
-
-For data that is shared across users but **dynamic** (e.g., lead_statuses, lead_sources), fetch it server-side per request (they are small tables, ~10 rows). Use `unstable_cache` with a short revalidation if needed, but **never hardcode these values** — always query the lookup tables.
-
-Lookup data is passed from Server Components to Client Components as props:
-
-```tsx
-// app/(protected)/pipeline/page.tsx — Server Component
-const supabase = await createClient();
-const { data: statuses } = await supabase.from("lead_statuses").select().order("position");
-const { data: leads } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
-
-return <KanbanBoard initialLeads={leads} statuses={statuses} />;
+Dashboard
+Objects    ←  main object list
+  → Contacts   (filtered by type)
+  → Companies
+  → Deals
+Registry   ←  admin: Modules & Object Types
+Audit Logs
+Settings
+  → Roles & Permissions
+  → User Management
 ```
 
 ---
 
-## 10. Realtime Sync
+## 9. Supabase Client Setup
 
-### 10.1 Supabase Realtime Setup
+Three client factories following `@supabase/ssr` patterns:
 
-Realtime is enabled per-table in the Supabase dashboard (or via migration):
-
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE leads;
-ALTER PUBLICATION supabase_realtime ADD TABLE lead_statuses;
-ALTER PUBLICATION supabase_realtime ADD TABLE lead_sources;
-```
-
-Subscribing to `lead_statuses` and `lead_sources` ensures that when an admin renames a status or changes its color, all connected clients see the update instantly (e.g., Kanban column headers update without refresh).
-
-### 10.2 Subscription Pattern
-
-All realtime subscriptions follow a reusable hook pattern:
-
-```ts
-// modules/leads/hooks/useLeadRealtime.ts
-"use client";
-
-import { useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
-import type { LeadRow } from "../types/lead.types";
-
-type LeadChangeHandler = {
-  onInsert?: (lead: LeadRow) => void;
-  onUpdate?: (lead: LeadRow) => void;
-  onDelete?: (oldLead: Partial<LeadRow>) => void;
-};
-
-export function useLeadRealtime(handlers: LeadChangeHandler) {
-  useEffect(() => {
-    const supabase = createClient();
-
-    const channel = supabase
-      .channel("leads-changes")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads" }, (p) => {
-        handlers.onInsert?.(p.new as LeadRow);
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "leads" }, (p) => {
-        handlers.onUpdate?.(p.new as LeadRow);
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "leads" }, (p) => {
-        handlers.onDelete?.(p.old as Partial<LeadRow>);
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, []);  // stable — handlers should be memoized by the consumer
-}
-```
-
-### 10.3 Consistency Model
-
-```
-User drags card → optimistic UI update → Server Action → DB write → Supabase realtime event → all connected clients update
-```
-
-- **Optimistic updates** in the initiating client for instant feedback.
-- **Realtime broadcast** to all other connected clients.
-- **Revert on error** if the Server Action fails (the optimistic state is rolled back).
+| Client | File | Usage |
+|---|---|---|
+| **Browser** | `lib/supabase/client.ts` | Client Components. Singleton via `createBrowserClient()` |
+| **Server** | `lib/supabase/server.ts` | Server Components, Server Actions, Route Handlers. Per-request, reads cookies |
+| **Admin** | `lib/supabase/admin.ts` | `service_role` key. Bypasses RLS. Used by services for cross-user queries |
 
 ---
 
-## 11. Security
+## 10. Audit Logging
 
-### 11.1 Row-Level Security (RLS)
-
-RLS is the **last line of defense** — even if application code has a bug, the database itself enforces access.
-
-```sql
--- Enable RLS on all tables
-ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE lead_statuses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE lead_sources ENABLE ROW LEVEL SECURITY;
-
--- Leads: authenticated users can read all leads
-CREATE POLICY "Authenticated users can read leads"
-  ON leads FOR SELECT
-  TO authenticated
-  USING (true);
-
--- Leads: users can insert leads (created_by = their ID)
-CREATE POLICY "Users can create leads"
-  ON leads FOR INSERT
-  TO authenticated
-  WITH CHECK (created_by = auth.uid());
-
--- Leads: users can update leads assigned to them or created by them
--- (Broader admin updates are enforced at the app level via RBAC, 
---  but RLS ensures no one touches data without being authenticated)
-CREATE POLICY "Users can update own or assigned leads"
-  ON leads FOR UPDATE
-  TO authenticated
-  USING (created_by = auth.uid() OR assigned_to = auth.uid())
-  WITH CHECK (true);
-
--- Leads: only creators can delete (admin override via service role)
-CREATE POLICY "Users can delete own leads"
-  ON leads FOR DELETE
-  TO authenticated
-  USING (created_by = auth.uid());
-
--- Profiles: users can read all profiles
-CREATE POLICY "Users can read profiles"
-  ON profiles FOR SELECT
-  TO authenticated
-  USING (true);
-
--- Profiles: users can update own profile
-CREATE POLICY "Users can update own profile"
-  ON profiles FOR UPDATE
-  TO authenticated
-  USING (id = auth.uid());
-
--- Audit logs: readable by authenticated users (filtered by role in app layer)
-CREATE POLICY "Authenticated users can read audit logs"
-  ON audit_logs FOR SELECT
-  TO authenticated
-  USING (true);
-
--- Audit logs: insert only (no update/delete)
-CREATE POLICY "System can insert audit logs"
-  ON audit_logs FOR INSERT
-  TO authenticated
-  WITH CHECK (user_id = auth.uid());
-
--- Lead statuses / sources: readable by all authenticated users
-CREATE POLICY "Authenticated users can read lead statuses"
-  ON lead_statuses FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Authenticated users can read lead sources"
-  ON lead_sources FOR SELECT TO authenticated USING (true);
-
--- Lead statuses / sources: mutations restricted to service role
--- (app-level RBAC enforces who can manage settings;
---  RLS ensures only admin client can write)
-CREATE POLICY "Service role manages lead statuses"
-  ON lead_statuses FOR ALL TO service_role USING (true);
-
-CREATE POLICY "Service role manages lead sources"
-  ON lead_sources FOR ALL TO service_role USING (true);
-```
-
-**Note:** For admin operations that bypass RLS (e.g., admin deleting any lead), use the **Supabase service role client** (`lib/supabase/admin.ts`) — this client bypasses RLS entirely. It is only used on the server for admin-escalated operations.
-
+Every mutation is logged via `auditLog()`:
 ```ts
-// lib/supabase/admin.ts
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "./database.types";
-
-export function createAdminClient() {
-  return createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
-```
-
-### 11.2 Session Security
-
-- **Middleware** refreshes tokens on every request (via `supabase.auth.getUser()`).
-- **Never use `getSession()`** on the server — it reads from client-provided cookies without validating the JWT. Always use `getUser()` which makes a round-trip to Supabase Auth.
-- **HTTP-only cookies** are used for session storage (handled by `@supabase/ssr` automatically).
-
-### 11.3 Input Validation
-
-All inputs are validated with **Zod schemas** before touching the database:
-
-```ts
-// modules/leads/schemas/lead.schema.ts
-import { z } from "zod";
-
-// source_id and status_id are UUIDs referencing dynamic lookup tables —
-// no hardcoded enum values. The UI populates dropdowns by fetching
-// from lead_statuses / lead_sources tables.
-export const leadCreateSchema = z.object({
-  name: z.string().min(1).max(255),
-  email: z.string().email().optional().or(z.literal("")),
-  phone: z.string().max(50).optional(),
-  company: z.string().max(255).optional(),
-  source_id: z.string().uuid(),
-  status_id: z.string().uuid(),
-  notes: z.string().max(5000).optional(),
-  assigned_to: z.string().uuid().optional(),
-});
-
-export const leadUpdateSchema = leadCreateSchema.partial();
-
-// Settings schemas — for managing lookup tables
-export const statusCreateSchema = z.object({
-  name: z.string().min(1).max(100),
-  slug: z.string().min(1).max(100).regex(/^[a-z0-9_]+$/),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#6B7280"),
-  position: z.number().int().min(0),
-  is_win: z.boolean().default(false),
-  is_loss: z.boolean().default(false),
-});
-
-export const sourceCreateSchema = z.object({
-  name: z.string().min(1).max(100),
-  slug: z.string().min(1).max(100).regex(/^[a-z0-9_]+$/),
-  icon: z.string().max(50).optional(),
-  position: z.number().int().min(0),
+await auditLog(ctx, {
+  action: "object:create",
+  category: "data",
+  entityType: "object",
+  entityId: newObject.id,
+  metadata: { objectTypeName, moduleCount },
 });
 ```
 
----
-
-## 12. Testing Strategy
-
-### 12.1 Test Pyramid
-
-```
-              ┌─────────┐
-              │   E2E   │   Playwright (critical paths only)
-              ├─────────┤
-          ┌───┤  Integ  │   Vitest + Supabase local (API route tests)
-          │   ├─────────┤
-      ┌───┤   │  Unit   │   Vitest (services, RBAC, schemas, utils)
-      │   │   └─────────┘
-```
-
-### 12.2 Unit Tests — Services
-
-Test services by mocking the Supabase client:
-
-```ts
-// modules/leads/services/__tests__/lead.service.test.ts
-import { describe, it, expect, vi } from "vitest";
-import { createLead } from "../lead.service";
-
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      insert: vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn(() => ({
-            data: { id: "uuid-1", name: "Test Lead", status: "new" },
-            error: null,
-          })),
-        })),
-      })),
-    })),
-  })),
-}));
-
-describe("createLead", () => {
-  it("creates a lead with valid input", async () => {
-    const ctx = { userId: "user-1", permissions: new Set(["lead:create"]) };
-    const result = await createLead(ctx, {
-      name: "Test Lead",
-      source: "linkedin",
-    });
-
-    expect(result.id).toBe("uuid-1");
-    expect(result.status).toBe("new");
-  });
-
-  it("throws FORBIDDEN without lead:create permission", async () => {
-    const ctx = { userId: "user-1", permissions: new Set([]) };
-    await expect(createLead(ctx, { name: "X", source: "linkedin" }))
-      .rejects.toThrow("Missing permission");
-  });
-});
-```
-
-### 12.3 Unit Tests — RBAC
-
-```ts
-// lib/permissions/__tests__/rbac.test.ts
-describe("hasPermission", () => {
-  it("returns true when permission exists", () => {
-    const ctx = { userId: "u1", permissions: new Set(["lead:create", "lead:read"]) };
-    expect(hasPermission(ctx, "lead:create")).toBe(true);
-  });
-
-  it("returns false when permission missing", () => {
-    const ctx = { userId: "u1", permissions: new Set(["lead:read"]) };
-    expect(hasPermission(ctx, "lead:delete")).toBe(false);
-  });
-});
-```
-
-### 12.4 Integration Tests — API Routes
-
-Use Supabase CLI's local dev environment (`supabase start`) for integration tests against a real database:
-
-```ts
-// app/api/leads/__tests__/route.integration.test.ts
-import { describe, it, expect, beforeAll } from "vitest";
-
-describe("GET /api/leads", () => {
-  it("returns 401 without session", async () => {
-    const res = await fetch("http://localhost:3000/api/leads");
-    expect(res.status).toBe(401);
-  });
-});
-```
-
-### 12.5 Schema Validation Tests
-
-```ts
-// modules/leads/schemas/__tests__/lead.schema.test.ts
-describe("leadCreateSchema", () => {
-  it("rejects empty name", () => {
-    expect(() => leadCreateSchema.parse({ name: "", source: "linkedin" })).toThrow();
-  });
-
-  it("accepts valid input", () => {
-    const result = leadCreateSchema.parse({ name: "John", source: "linkedin" });
-    expect(result.status).toBe("new"); // default
-  });
-});
-```
+The `audit_logs` table records: user, action, category, entity reference, metadata JSON, IP, user agent, and timestamp.
 
 ---
 
-## 13. Delivery Plan
+## 11. Key Conventions
 
-### Phase 1: Foundation (Day 1 — Feb 14)
+### TypeScript
+- Strict mode, `@/*` path alias → `./src/*`
+- `TableRow<T>` global helper extracts `Database["public"]["Tables"][T]["Row"]`
+- `ActionResult<T>` global helper: `{ success: true; data: T } | { success: false; error: string }`
+- Zod v4 import: `import { z } from "zod/v4"`
+- `z.email()`, `z.url()` (v4 API, not `.string().email()`)
 
-| # | Task | Output |
-|---|------|--------|
-| 1.1 | Initialize Next.js 16 project with TypeScript, Tailwind v4 | Boilerplate running |
-| 1.2 | Initialize Supabase (local + remote) | `supabase init`, link project |
-| 1.3 | Set up Supabase client factories (browser, server, middleware, admin) | `lib/supabase/*` files |
-| 1.4 | Set up root middleware for session refresh | `middleware.ts` |
-| 1.5 | Auth callback route | `app/auth/callback/route.ts` |
-| 1.6 | Create database migration: profiles, roles, permissions, user_roles, role_permissions, lead_statuses, lead_sources | `supabase/migrations/001_*` |
-| 1.7 | Seed roles, permissions, default statuses, default sources | `supabase/seed.sql` |
-| 1.8 | Set up RBAC module (`actions.ts`, `rbac.ts`) | `lib/permissions/*` |
-| 1.9 | Set up audit logger (platform-wide, with category support) | `lib/audit/logger.ts` |
-| 1.10 | Error handling utilities (`AppError`, `Result`) | `lib/utils/*` |
+### Naming
+- DB columns / API params: `snake_case`
+- TypeScript interfaces: `PascalCase`
+- Derived/computed properties in rich types: `camelCase` (e.g. `displayName`, `moduleId`)
+- Module names: `lowercase_with_underscores` (regex: `^[a-z_][a-z0-9_]*$`)
 
-### Phase 2: Lead Management (Day 2-3 — Feb 15-16)
+### OMP Terminology Mapping (from ECS)
+| Old (ECS) | New (OMP) |
+|---|---|
+| Entity | Object |
+| Component | Module |
+| System | Processor |
+| `entities` table | `objects` table |
+| `components` table | `modules` table |
+| `entity_types` | `object_types` |
+| `entity_components` | `object_modules` |
+| `entity_relations` | `object_relations` |
+| `entity_type_components` | `object_type_modules` |
+| `role_component_permissions` | `role_module_permissions` |
 
-| # | Task | Output |
-|---|------|--------|
-| 2.1 | Create database migration: leads table (FK to lead_statuses/lead_sources), indexes, RLS | `supabase/migrations/002_*` |
-| 2.2 | Generate Supabase TypeScript types | `database.types.ts` |
-| 2.3 | Lead Zod schemas (UUID refs for status/source, not enums) | `modules/leads/schemas/lead.schema.ts` |
-| 2.4 | Lead service (CRUD + status change) | `modules/leads/services/lead.service.ts` |
-| 2.5 | Lead Server Actions | `modules/leads/actions/lead.actions.ts` |
-| 2.6 | Lead API route handlers (GET, POST, PATCH, DELETE) | `app/api/leads/*` |
-| 2.7 | Login page + LoginForm + auth audit logging | `app/(auth)/login/page.tsx` |
-| 2.8 | Protected layout (sidebar, topbar) | `app/(protected)/layout.tsx` |
-| 2.9 | Leads list page (table view, dynamic filters from lookup tables) | `app/(protected)/leads/page.tsx` |
-| 2.10 | Lead create/edit form (dropdowns populated from lead_statuses/lead_sources) | `modules/leads/components/LeadForm.tsx` |
-| 2.11 | Lead delete confirmation | Delete flow with confirmation modal |
-| 2.12 | Unit tests for lead service & schemas | `__tests__/*` |
+### Next.js 16 Patterns
+- Dynamic route params: `params: Promise<{ id: string }>`
+- Search params: `searchParams: Promise<{ page?: string }>`
+- Server Actions in `"use server"` files
+- `revalidatePath()` after mutations
 
-### Phase 3: Kanban Pipeline + Settings (Day 4 — Feb 17)
-
-| # | Task | Output |
-|---|------|--------|
-| 3.1 | Enable Supabase Realtime on leads, lead_statuses, lead_sources | Migration + `ALTER PUBLICATION` |
-| 3.2 | Realtime hook (`useLeadRealtime`) | `modules/leads/hooks/useLeadRealtime.ts` |
-| 3.3 | Kanban board with drag-and-drop (`@dnd-kit`) — dynamic columns from lead_statuses | `modules/pipeline/components/*` |
-| 3.4 | Optimistic updates + realtime reconciliation | Inside `KanbanBoard.tsx` |
-| 3.5 | Settings module — status CRUD service + UI | `modules/settings/*`, `app/(protected)/settings/statuses/` |
-| 3.6 | Settings module — source CRUD service + UI | `modules/settings/*`, `app/(protected)/settings/sources/` |
-| 3.7 | Unit tests for pipeline + settings logic | Status transition + settings CRUD tests |
-
-### Phase 4: Dashboard (Day 5 — Feb 18)
-
-| # | Task | Output |
-|---|------|--------|
-| 4.1 | Database functions (`leads_count_by_status`, `leads_monthly_evolution`) | Migration |
-| 4.2 | Dashboard service | `modules/dashboard/services/dashboard.service.ts` |
-| 4.3 | Stats cards component | KPI cards (total, by status, conversion rate) |
-| 4.4 | Status distribution chart (Recharts) | Bar/pie chart |
-| 4.5 | Monthly evolution chart (Recharts) | Line/area chart |
-| 4.6 | Dashboard page composition | `app/(protected)/dashboard/page.tsx` |
-
-### Phase 5: Polish & Deployment (Day 6 — Feb 19)
-
-| # | Task | Output |
-|---|------|--------|
-| 5.1 | Audit log viewer page (filterable by category: auth/data/settings/admin) | `app/(protected)/audit/page.tsx` |
-| 5.2 | Responsive design pass | Mobile-friendly layout |
-| 5.3 | Error boundaries and loading states | `error.tsx`, `loading.tsx` per route |
-| 5.4 | README with setup instructions | `README.md` |
-| 5.5 | Deploy to Vercel | Production URL |
-| 5.6 | Final QA and fix regressions | Manual testing pass |
-
----
-
-## Appendix A: Key Technical Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| **`@supabase/ssr` over `@supabase/auth-helpers-nextjs`** | The auth-helpers package is deprecated. `@supabase/ssr` is the official replacement, designed for App Router and RSC. |
-| **`getUser()` over `getSession()`** | `getSession()` reads from cookies without JWT validation — insecure on the server. `getUser()` makes a round-trip to verify the token. |
-| **Service layer with `AuthContext`** | Decouples business logic from HTTP/framework concerns. Services are testable without spinning up Next.js. |
-| **RBAC at service level, not middleware** | Per-action granularity (e.g., `lead:update` vs `lead:update:own`). Route-level checks are too coarse. |
-| **Optimistic updates + realtime** | Instant UI feedback when dragging cards. Realtime subscription ensures all clients converge to the true state. |
-| **Zod validation** | Runtime type safety at the boundary. Catches malformed data before it reaches the database. |
-| **RLS as defense-in-depth** | Even if app code has a vulnerability, the database enforces row-level access. Belt and suspenders. |
-| **Server Actions for mutations** | Built-in CSRF protection, automatic `revalidatePath`, progressive enhancement. Route Handlers reserved for external/programmatic API. |
-| **Domain-centric `modules/` folder** | Scales better than feature-by-type (`components/`, `services/`, `hooks/`). Each domain is self-contained. |
-| **Dynamic lookup tables over Postgres enums** | Enums require migrations to modify — impossible at runtime. Lookup tables (`lead_statuses`, `lead_sources`) allow admins to add/rename/reorder values from the UI without developer intervention. `is_win`/`is_loss` flags decouple dashboard logic from status names. |
-| **Platform-wide audit logging** | Every sensitive action (auth, data, settings, admin) is logged with category, old/new values, and metadata. Enables compliance, debugging, and user accountability. `auditLogSystem()` handles unauthenticated events (failed logins). |
-| **Postgres functions for aggregations** | Complex aggregation queries run in SQL (close to the data). Avoids pulling large datasets to the app layer. |
-| **`@dnd-kit` over alternatives** | Accessible, performant, headless — no opinionated styling. Better maintained than `react-beautiful-dnd` (deprecated). |
-| **Vitest over Jest** | Faster, native ESM support, better TypeScript integration. Aligns with Vite ecosystem. |
-| **Tailwind v4** | Utility-first CSS, consistent with Next.js 16 defaults. v4 has CSS-first configuration. |
-
----
-
-## Appendix B: Error Handling — `lib/utils/errors.ts`
-
-```ts
-export type ErrorCode = "FORBIDDEN" | "NOT_FOUND" | "VALIDATION" | "DB_ERROR" | "UNAUTHORIZED";
-
-export class AppError extends Error {
-  constructor(
-    public code: ErrorCode,
-    message: string,
-    public details?: Record<string, any>
-  ) {
-    super(message);
-    this.name = "AppError";
-  }
-}
-```
+### Error Handling
+- `AppError` class with code: `FORBIDDEN`, `NOT_FOUND`, `VALIDATION`, `DB_ERROR`, `UNAUTHORIZED`
+- Services throw `AppError`; actions catch and return `ActionResult`
+- Route handlers catch and return `{ error }` with HTTP status
