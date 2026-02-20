@@ -147,6 +147,7 @@ export default function AuthLayout({
           left: "32%",
           top: "50%",
           transform: "translate(-50%, -50%)",
+          zIndex: 0,
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
