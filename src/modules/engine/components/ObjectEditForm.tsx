@@ -27,7 +27,7 @@ interface Props {
     schema: ModuleSchema;
   }[];
   /** Module IDs that are required by this object's type */
-  requiredModuleIds?: Set<string>;
+  requiredModuleIds?: string[];
   onSaved?: () => void;
 }
 
@@ -39,7 +39,7 @@ interface Props {
 export function ObjectEditForm({
   object,
   availableModules = [],
-  requiredModuleIds = new Set(),
+  requiredModuleIds = [],
   onSaved,
 }: Props) {
   const router = useRouter();
@@ -137,7 +137,7 @@ export function ObjectEditForm({
       {/* Attached modules */}
       {object.modules.map((mod) => {
         const isExpanded = expandedIds.has(mod.moduleId);
-        const isRequired = requiredModuleIds.has(mod.moduleId);
+        const isRequired = requiredModuleIds.includes(mod.moduleId);
         const isSaving = savingId === mod.moduleId;
         const isSuccess = successId === mod.moduleId;
 

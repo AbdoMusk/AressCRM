@@ -63,13 +63,17 @@ export function RoleManager({ initialRoles, allPermissions }: Props) {
     setError(null);
     setLoading(true);
     try {
-      await createRoleAction(
+      const result = await createRoleAction(
         newName.trim(),
         newDesc.trim() || null,
         Array.from(selectedPerms)
       );
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       // Refresh server data
-      await router.refresh();
+      router.refresh();
       setShowCreate(false);
       setNewName("");
       setNewDesc("");
@@ -85,10 +89,14 @@ export function RoleManager({ initialRoles, allPermissions }: Props) {
     setError(null);
     setLoading(true);
     try {
-      await updateRoleAction(roleId, {
+      const result = await updateRoleAction(roleId, {
         name: editName.trim(),
         description: editDesc.trim() || null,
       });
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       setRoles((prev) =>
         prev.map((r) =>
           r.id === roleId
@@ -97,7 +105,7 @@ export function RoleManager({ initialRoles, allPermissions }: Props) {
         )
       );
       setEditingId(null);
-      await router.refresh();
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed");
     } finally {
@@ -109,14 +117,18 @@ export function RoleManager({ initialRoles, allPermissions }: Props) {
     setError(null);
     setLoading(true);
     try {
-      await updateRolePermissionsAction(roleId, Array.from(selectedPerms));
+      const result = await updateRolePermissionsAction(roleId, Array.from(selectedPerms));
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       const updatedPerms = allPermissions.filter((p) => selectedPerms.has(p.id));
       setRoles((prev) =>
         prev.map((r) =>
           r.id === roleId ? { ...r, permissions: updatedPerms } : r
         )
       );
-      await router.refresh();
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed");
     } finally {
@@ -129,9 +141,13 @@ export function RoleManager({ initialRoles, allPermissions }: Props) {
     if (!confirm(`Delete role "${role?.name}"? This cannot be undone.`)) return;
     setError(null);
     try {
-      await deleteRoleAction(roleId);
+      const result = await deleteRoleAction(roleId);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       setRoles((prev) => prev.filter((r) => r.id !== roleId));
-      await router.refresh();
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
     }

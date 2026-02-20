@@ -1,0 +1,341 @@
+Data Model
+Learn what a data model is and how to design one that fits your business.
+
+Data Model
+​
+What is a Data Model?
+A data model is the structure that defines how information is organized in your CRM. Think of it as the blueprint of your customer data — you design it once, then fill it with your actual data.
+​
+Key Concepts
+​
+Objects
+Objects are the main categories of data in your CRM. Each object represents a type of thing you want to track.
+Twenty comes with standard objects:
+People — individuals (contacts, leads, partners)
+Companies — organizations
+Opportunities — deals or sales
+Notes — attached notes on records
+Tasks — to-dos linked to records
+You can also create custom objects for anything specific to your business (e.g., Projects, Subscriptions, Events).
+​
+Fields
+Fields are the properties or attributes that describe each object. They store the actual information.
+For example, the People object has fields like:
+Name
+Email
+Phone
+Job Title
+Company (a relation to the Companies object)
+Fields have different types: text, number, date, select, multi-select, relation, and more. You can add custom fields to any object.
+​
+Records
+Records are the individual entries within an object — the actual data you create and manage.
+For example:
+“John Smith” is a record in the People object
+“Acme Corp” is a record in the Companies object
+An analogy:
+Data Model Concept	Real-World Analogy
+Objects	Sections in a book (the categories)
+Fields	Columns in a spreadsheet (the properties)
+Records	Rows in a spreadsheet (the actual entries)
+You design the data model (objects + fields) once, then create many records within that structure.
+​
+Why Customize Your Data Model?
+Every business works differently. Customizing your data model means you can shape Twenty around your processes instead of forcing yours into a rigid system.
+Twenty offers full flexibility:
+Create as many custom objects as you need
+Add unlimited custom fields
+The price doesn’t change based on customization
+​
+Tips to Design Your Data Model
+​
+1. Start with Your Core Objects
+Identify the main concepts you work with. Twenty already provides:
+People — your contacts
+Companies — your accounts
+Opportunities — your deals
+Think about what else you might need:
+Stripe would need a Subscriptions object
+Airbnb would need a Trips object
+An accelerator would need a Batches object
+​
+2. Use Fields for Variations, Not New Objects
+If something is just a characteristic of an existing object, make it a field.
+Use fields for:
+Categories and labels (e.g., Industry for Companies)
+Status values (e.g., Stage for Opportunities)
+Attributes and properties
+​
+3. Create an Object When It Stands on Its Own
+If the concept has its own lifecycle, properties, or relationships, it deserves an object.
+Create an object for:
+Projects — have deadlines, owners, and tasks
+Subscriptions — connect companies, products, and invoices
+Events — involve attendees and follow-up actions
+These go beyond a single field because they carry their own data and relationships.
+​
+4. Create an Object When Records Are Open-Ended
+If something can be linked multiple times and you don’t know how many, use an object.
+Bad approach: Creating fields like Product 1, Product 2, Product 3…
+Good approach: Create a Products object and relate it to records. This supports one, two, or a hundred products without changing your model.
+​
+5. Keep It Simple First
+Start with fields. Move to new objects only when you feel the limits:
+Too many fields on one object
+Repeated records that should be separate
+Relationships that don’t fit neatly
+​
+Special Note on People, Companies, and Opportunities
+Email and calendar sync only works with People, Companies, and Opportunities.
+These are the only objects where you can access synchronized emails and meetings from your mailbox/calendar. We recommend using them as much as possible.
+Best practices:
+If you need categories of People, use fields (not new objects)
+Example: Use a Person Type field with values “Prospect” and “Partner” instead of creating separate objects
+Create different views to filter: one showing partners, another showing prospects
+It’s okay to have fields that don’t apply to every record. For example, a Referral Link field on People that only applies when Person Type = Partner. Hide this field from views where it’s not relevant.
+​
+Questions to Guide Your Choice
+Ask yourself:
+Is this just a property of something I already have, or does it need its own properties?
+Will I ever need to track multiple of these per record, without knowing how many?
+Does this concept connect to several different objects, not just one?
+Will it have its own lifecycle (stages, start/end dates)?
+If the answer is “yes” to one or more, it’s probably time for a new object.
+​
+Accessing Your Data Model
+Go to Settings in the left sidebar
+Click Data Model
+View all your objects (standard and custom)
+Click any object to see and edit its fields
+Don’t see Data Model in Settings?
+Access to the data model is usually restricted to administrators. Contact your workspace admin if you need access.
+​
+Next Steps
+Once you’ve planned your data model:
+How to Create Custom Objects
+How to Create Custom Fields
+How to Create Relation Fields
+​
+Need Help?
+Our team can help you design and create the data model you need. Discover our Implementation Services.
+
+Objects
+Learn about standard and custom objects in Twenty.
+
+​
+Standard Objects
+Standard objects are predefined entities in your workspace to help you get started. They’re part of a shared data model accessible to all users of Twenty. You can use them as-is, customize them or deactivate them.
+
+​
+People
+The People object stores your contacts. It includes contact details and interaction history, so you can see all your customer interactions in one place.
+​
+Company
+The Companies object stores your business accounts. It includes details like industry, size and location. Companies connect to both People and Opportunities objects.
+​
+Opportunities
+The Opportunities object stores deal-related data. It tracks the progression of potential sales, from prospecting to closure, recording stages, deal sizes, associated account, and expected close date. You can view your sales pipeline in a kanban layout.
+​
+Notes
+The Notes object stores free-form notes that can be attached to People, Companies, Opportunities, and other records. Use notes to capture meeting summaries, important details, or any contextual information.
+​
+Tasks
+The Tasks object stores to-dos and action items. Tasks can be linked to People, Companies, Opportunities, and other records. Track due dates, assignees, and completion status to stay on top of your follow-ups.
+​
+Custom Objects
+Custom objects let you store information that’s unique to your organization and that standard objects can’t handle. For example, if you’re SpaceX, you may want to create a custom object for Rockets and Launches.
+
+​
+Creating a New Custom Object
+To create a new custom object:
+Go to Settings in the sidebar on the left.
+Under Workspace, go to Data model. Here you’ll be able to see an overview of all your existing Standard and Custom objects (both active and disabled).
+
+Click on + New object at the top. Enter the name (both singular and plural), choose an icon, and add a description for your custom object and hit Save (at the top right). Using Listing as an example of custom object, the singular would be “listing” and the plural would be “listings” along with a description like “Listings that hosts created to showcase their property.”
+Your custom object is now created and will appear in your sidebar. You can start adding records to it right away.
+​
+Managing Objects
+​
+Deactivating Objects
+If you don’t need a standard or custom object:
+Go to Settings → Data Model
+Find the object you want to deactivate
+Click the toggle to deactivate it
+The object will be hidden from your workspace but data is preserved
+​
+Reactivating Objects
+To bring back a deactivated object:
+Go to Settings → Data Model
+Look for deactivated objects (they’ll be grayed out)
+Click the toggle to reactivate it
+The object and all its data will be restored
+​
+Best Practices
+​
+When to Create Custom Objects
+Unique business entities: Things specific to your industry or process
+Complex relationships: When you need to track connections between multiple entities
+Scalable data: When you might have many instances of something
+​
+When to Use Fields Instead
+Simple attributes: Properties that describe existing objects
+Categories or labels: Ways to classify existing records
+Single values: Information that doesn’t need its own lifecycle
+​
+Object Naming
+Use clear, descriptive names: Make it obvious what the object represents
+Follow conventions: Use singular for the object name, plural for the collection
+Consider your team: Choose names everyone will understand
+
+Fields
+Understand the role of fields and how to manage them.
+
+​
+About Fields
+Fields are like columns in a spreadsheet. They store different types of data like text, numbers, or dates. Fields can be standard (built-in) or custom (the ones you create).
+​
+Standard Fields
+Standard fields come built-in with Twenty to handle common business needs.
+For example, First Name and Last Name are standard fields in the People object. They store text data for individual names.
+You cannot delete standard fields, but you can deactivate them if you don’t need them.
+You can also customize the options of the standard SELECT type fields, for example the options for the Stage on Opportunities.
+
+​
+Custom Fields
+Custom fields can be added to any object. You can store text, numbers, dates, dropdown selections, and more. Use custom fields to track information that’s specific to your business.
+For instance, a custom field for SpaceX could be Rocket Active Status, indicating if a rocket is operational.
+
+​
+Field Types
+Twenty supports various field types:
+Type	Description	Example
+Address	Structured address with street, city, state, country, postal code	Office Address
+Array	List of text values	Tags
+Boolean	True/false checkbox	Is Active
+Currency	Monetary value with currency code	Deal Amount (USD)
+Date	Date values	Close Date
+Date & Time	Date with time	Meeting Time
+Domain	Website domain (used for Companies)	acme.com
+Email	Email addresses (with primary + additional)	Contact Email
+JSON	Structured JSON data	Custom metadata
+Links	URLs with labels (primary + secondary)	Website, LinkedIn
+Long Text	Multi-line text	Description, Notes
+Multi-Select	Multiple choices from a predefined list	Tags, Categories
+Number	Numeric values (integers or decimals)	Quantity, Score
+Phone	Phone numbers with country code	Work Phone
+Rating	Star rating (1-5)	Priority, Score
+Relation	Links to records in other objects	Company → People
+Select	Single choice from a predefined list	Stage, Status
+Text	Single line of text	Name, Title
+​
+Create a Custom Field
+To add a custom field to any object, follow these steps:
+Go to Settings in the left sidebar.
+Go to Data Model, then select the object you wish to customize.
+Proceed by clicking on Add Field.
+Choose a field name and type that suits your requirements. Consider adding a field description for better understanding.
+Your newly created field is now available within the application’s fields. To display it on a specific view, click on the options menu, then select Fields.
+
+Quick way: Click the + button at the top right of any object table, then select Customize fields. This takes you directly to the Data Model settings.
+
+​
+Deactivate a Field
+You can deactivate a field to hide it from the app without losing your data. Think of it as hiding the field rather than deleting it.
+Here’s how you can do it:
+Find the field you want to deactivate in your object settings.
+Click the three dots ⋮ next to the field to open the menu.
+Select Deactivate from the dropdown.
+
+What happens when you deactivate a field?
+In the app: The field disappears and you can’t add new values to it.
+Existing relationships: If it’s a relation field, existing connections stay but you can’t create new ones.
+API access: You can still access the field and its data through the API.
+You can reactivate Standard and Custom Fields or have the option to permanently delete them.
+​
+Make Fields Unique
+Make a field unique to ensure distinct records cannot have the same value. For example, email addresses are unique for each person.
+If you get an error when setting uniqueness, check for duplicate values in your data (including deleted records).
+​
+Field Configuration Best Practices
+​
+Naming Conventions and Limitations
+Singular and plural named must be distinct: Our GraphQL API needs distinct names for mutations
+Protected field names: some names are reserved for system usage (e.g., Type, Application)
+​
+Currency and Phone Fields
+Default currency: can be configured via the data model
+Default country codes: can be configured for phone fields via the data model
+​
+Select Fields
+A default option can be selected for each Select field
+​
+Record Text Fields
+Each object has one main display field: This field appears in the leftmost column and represents the record when linked to other objects. It must be a text field. For example, People uses Name as the main field, so when you link a person to a company, you’ll see their name in the company’s view.
+
+Relation Fields
+Connect records across different objects using relation fields.
+
+​
+Types of Relations
+​
+One-to-Many
+One record in Object A can be linked to many records in Object B.
+Example: One Company can have many People (employees).
+​
+Many-to-One
+Many records in Object A can be linked to one record in Object B.
+Example: Many People can belong to one Company.
+​
+Relations to Multiple Object Types
+Some objects can link to multiple object types on one side of the relation.
+Example: A Note can be attached to one Person AND one Company AND one Opportunity simultaneously. The Note is on the “many” side, connecting to multiple “one” sides.
+
+Similarly, a Project (on the “one” side) could receive links from multiple People, multiple Companies, and multiple Notes.
+
+Import/Export limitation: Relations pointing to multiple object types are not yet supported for CSV import/export. This is on our roadmap.
+​
+Many-to-Many
+Many records in Object A can be linked to many records in Object B.
+Example: Many People can be linked to many Projects, and vice versa.
+Many-to-many relations use a junction object pattern: an intermediate object that connects both sides. With the junction relation feature, Twenty displays the final linked records directly, hiding the intermediate object from the UI.
+
+Lab Feature: Junction relations must be enabled at Settings → Updates → Lab before use.
+See How to Create Many-to-Many Relations for a complete step-by-step guide.
+​
+Creating a Relation Field
+Go to Settings → Data Model
+Select the object where you want to add the relation
+Click + Add Field
+Select Relation as the field type
+Choose the target object(s) to relate to
+Configure the relation settings:
+Field name on source object: The name of the relation field on the object you’re editing
+Field name on destination object: The name of the relation field that will appear on the target object
+Relation type (one-to-many, many-to-one)
+Click Save
+​
+Standard Relations
+Twenty comes with pre-built relations between standard objects:
+From Object	To Object	Relation Type
+People	Companies	Many-to-One
+Opportunities	Companies	Many-to-One
+Opportunities	People	Many-to-One
+​
+Best Practices
+​
+Planning Relations
+Map your data model: Plan relations before creating them
+Consider direction: Think about which object “owns” the relationship
+Avoid circular dependencies: Keep your data model clean
+​
+Naming Relations
+Use clear names: Make it obvious what the relation represents
+Be consistent: Use similar naming patterns across relations
+Consider both sides: Name both sides of the relation appropriately
+​
+Performance
+Don’t over-relate: Too many relations can slow down your workspace
+​
+Limitations
+Deleting relations removes the link but not the related records
+Circular relations should be avoided for data integrity

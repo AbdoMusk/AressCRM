@@ -12,6 +12,8 @@ import {
   ChevronRight,
   ScrollText,
   Layers,
+  Kanban,
+  FileText,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -54,6 +56,17 @@ export function Sidebar({ permissions, objectTypes = [] }: SidebarProps) {
       href: "/objects",
       icon: <Box size={20} />,
       permissionAny: ["object:read", "object:read:own"],
+    },
+    {
+      label: "Pipeline",
+      href: "/pipeline",
+      icon: <Kanban size={20} />,
+      permissionAny: ["object:read", "object:read:own"],
+    },
+    {
+      label: "Pages",
+      href: "/pages",
+      icon: <FileText size={20} />,
     },
     {
       label: "Registry",

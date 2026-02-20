@@ -18,6 +18,7 @@ export async function GET(request: Request) {
       objectType: url.searchParams.get("type") ?? undefined,
       page: Number(url.searchParams.get("page") ?? "1"),
       limit: Number(url.searchParams.get("limit") ?? "50"),
+      search: url.searchParams.get("search") ?? undefined,
     };
 
     // Parse filters: filter[module][field][op]=value

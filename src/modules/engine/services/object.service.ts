@@ -25,6 +25,7 @@ import type {
 import type { AttachedModule, ModuleSchema } from "../types/module.types";
 import { parseModuleSchema } from "../types/module.types";
 import { validateModuleData, applyDefaults } from "../schemas/dynamic-validator";
+import { trackStatusChange } from "./timeline.service";
 
 // ── Helpers ──────────────────────────────────
 
@@ -118,6 +119,15 @@ export async function getObjects(
       return { objects: [], total: 0 };
     }
     query = query.in("id", objectIds);
+  }
+
+  // Apply text search across module data
+  if (params.search && params.search.trim().length > 0) {
+    const searchIds = await searchByModuleData(admin, params.search.trim());
+    if (searchIds.length === 0) {
+      return { objects: [], total: 0 };
+    }
+    query = query.in("id", searchIds);
   }
 
   // Sort and paginate
@@ -417,6 +427,24 @@ export async function updateObjectModule(
     metadata: { moduleName: mod.name },
   });
 
+  // Track status changes in timeline (stage module)
+  if (mod.name === "stage") {
+    const oldStatus = (oldOm?.data as Record<string, unknown>)?.status as string | undefined;
+    const newStatus = withDefaults.status as string | undefined;
+    if (oldStatus !== newStatus && newStatus) {
+      try {
+        await trackStatusChange(
+          ctx,
+          objectId,
+          oldStatus ?? "none",
+          newStatus
+        );
+      } catch {
+        // non-critical — don't block the update
+      }
+    }
+  }
+
   return getObject(ctx, objectId);
 }
 
@@ -677,4 +705,31 @@ async function filterByModuleData(
   }
 
   return resultIds ? [...resultIds] : [];
+}
+
+/**
+ * Search objects by text across all module data fields (name, title, email, company_name, etc.)
+ */
+async function searchByModuleData(
+  admin: ReturnType<typeof createAdminClient>,
+  searchTerm: string
+): Promise<string[]> {
+  // Use JSONB text search: cast data to text and do ilike
+  const { data } = await admin
+    .from("object_modules")
+    .select("object_id")
+    .or(
+      [
+        `data->>name.ilike.%${searchTerm}%`,
+        `data->>first_name.ilike.%${searchTerm}%`,
+        `data->>last_name.ilike.%${searchTerm}%`,
+        `data->>email.ilike.%${searchTerm}%`,
+        `data->>title.ilike.%${searchTerm}%`,
+        `data->>company_name.ilike.%${searchTerm}%`,
+        `data->>phone.ilike.%${searchTerm}%`,
+      ].join(",")
+    );
+
+  const ids = new Set<string>((data ?? []).map((r: any) => r.object_id as string));
+  return [...ids];
 }

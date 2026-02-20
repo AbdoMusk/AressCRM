@@ -123,6 +123,7 @@ export interface ObjectFilter {
 export interface ObjectQueryParams {
   objectType?: string;
   filters?: ObjectFilter[];
+  search?: string;
   sortModule?: string;
   sortField?: string;
   sortOrder?: "asc" | "desc";

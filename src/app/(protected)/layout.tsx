@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/permissions/rbac";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { Topbar } from "@/components/layout/Topbar";
+import { AppSidebar } from "@/components/layout/AppSidebar";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function ProtectedLayout({
@@ -23,12 +22,9 @@ export default async function ProtectedLayout({
     .order("display_name");
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
-      <Sidebar permissions={permArray} objectTypes={objectTypes ?? []} />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar userId={ctx.userId} />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
-      </div>
+    <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-950">
+      <AppSidebar permissions={permArray} objectTypes={objectTypes ?? []} />
+      <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
     </div>
   );
 }

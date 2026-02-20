@@ -53,7 +53,8 @@ export default async function ObjectsPage({
 
   if (error) {
     return (
-      <div className="space-y-6">
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="space-y-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           Objects
         </h1>
@@ -61,12 +62,14 @@ export default async function ObjectsPage({
           <p className="font-medium">Access Denied</p>
           <p className="mt-1 text-sm">{error}</p>
         </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
         Objects
       </h1>
@@ -74,7 +77,11 @@ export default async function ObjectsPage({
         objects={objectsResult?.objects ?? []}
         objectTypes={objectTypes ?? []}
         selectedType={params.type}
+        total={objectsResult?.total ?? 0}
+        page={page}
+        pageSize={pageSize}
       />
+      </div>
     </div>
   );
 }

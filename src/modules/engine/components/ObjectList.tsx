@@ -7,19 +7,28 @@ import { tw } from "./DynamicField";
 import { deleteObjectAction } from "@/modules/engine/actions/object.actions";
 import type { ObjectWithModules } from "@/modules/engine/types/object.types";
 import type { ObjectTypeWithModules } from "@/modules/engine/types/object.types";
-import { Plus, Filter, Trash2, Eye, ChevronDown } from "lucide-react";
+import { Plus, Filter, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Props {
   objects: ObjectWithModules[];
   objectTypes: ObjectTypeWithModules[];
-  /** Currently selected object type filter (name) */
+  /** Currently selected object type filter (id) */
   selectedType?: string;
+  /** Total number of objects matching current filters */
+  total?: number;
+  /** Current page (1-based) */
+  page?: number;
+  /** Items per page */
+  pageSize?: number;
 }
 
 export function ObjectList({
   objects,
   objectTypes,
   selectedType,
+  total = 0,
+  page = 1,
+  pageSize = 25,
 }: Props) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -66,7 +75,7 @@ export function ObjectList({
               >
                 <option value="">All types</option>
                 {objectTypes.map((t) => (
-                  <option key={t.id} value={t.name}>
+                  <option key={t.id} value={t.id}>
                     {t.display_name}
                   </option>
                 ))}
@@ -171,6 +180,46 @@ export function ObjectList({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {total > pageSize && (
+        <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (selectedType) params.set("type", selectedType);
+                params.set("page", String(page - 1));
+                router.push(`/objects?${params.toString()}`);
+              }}
+              disabled={page <= 1}
+              className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              <ChevronLeft size={14} />
+              Previous
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Page {page} of {Math.ceil(total / pageSize)}
+            </span>
+            <button
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (selectedType) params.set("type", selectedType);
+                params.set("page", String(page + 1));
+                router.push(`/objects?${params.toString()}`);
+              }}
+              disabled={page >= Math.ceil(total / pageSize)}
+              className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              Next
+              <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
       )}
     </div>

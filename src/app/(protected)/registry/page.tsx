@@ -20,15 +20,17 @@ export default async function RegistryPage() {
     requirePermission(ctx, Actions.MODULE_MANAGE);
   } catch {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Registry
-        </h1>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="space-y-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Registry
+          </h1>
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
           <p className="font-medium">Access Denied</p>
           <p className="mt-1 text-sm">
             You need module management permissions to access the registry.
           </p>
+        </div>
         </div>
       </div>
     );
@@ -49,7 +51,8 @@ export default async function RegistryPage() {
   }));
 
   return (
-    <div className="space-y-10">
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="space-y-10">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
         Registry
       </h1>
@@ -61,6 +64,7 @@ export default async function RegistryPage() {
 
       {/* Object Types section */}
       <ObjectTypeManager objectTypes={objectTypes} modules={modules} />
+      </div>
     </div>
   );
 }

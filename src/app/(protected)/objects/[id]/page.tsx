@@ -4,6 +4,7 @@ import { getObject } from "@/modules/engine/services/object.service";
 import { getRelations } from "@/modules/engine/services/relation.service";
 import { getModules } from "@/modules/engine/services/module.service";
 import { getObjectType } from "@/modules/engine/services/object-type.service";
+import { getTimeline } from "@/modules/engine/services/timeline.service";
 import { ObjectDetailTabs } from "./ObjectDetailTabs";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -25,18 +26,18 @@ export default async function ObjectDetailPage({
   const object = await getObject(ctx, id);
   if (!object) notFound();
 
-  const [relations, allModules, objectType] = await Promise.all([
+  const [relations, allModules, objectType, timelineEvents] = await Promise.all([
     getRelations(ctx, id),
     getModules(ctx),
     getObjectType(ctx, object.object_type_id),
+    getTimeline(ctx, id),
   ]);
 
-  // Build required module IDs from object type
-  const requiredModuleIds = new Set(
+  // Build required module IDs from object type (as array for client serialization)
+  const requiredModuleIds =
     objectType?.modules
       .filter((m: { required: boolean }) => m.required)
-      .map((m: { module_id: string }) => m.module_id) ?? []
-  );
+      .map((m: { module_id: string }) => m.module_id) ?? [];
 
   // Available modules for attaching (those with schemas)
   const availableModules = allModules.map((m) => ({
@@ -50,7 +51,8 @@ export default async function ObjectDetailPage({
   const typeName = objectType?.display_name ?? "Object";
 
   return (
-    <div className="space-y-6">
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Link
           href="/objects"
@@ -69,9 +71,11 @@ export default async function ObjectDetailPage({
       <ObjectDetailTabs
         object={object}
         relations={relations}
+        timelineEvents={timelineEvents}
         availableModules={availableModules}
         requiredModuleIds={requiredModuleIds}
       />
+      </div>
     </div>
   );
 }

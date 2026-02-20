@@ -13,6 +13,7 @@ export async function createObjectAction(
     if (!ctx) throw new Error("Unauthorized");
     const obj = await objectService.createObject(ctx, input);
     revalidatePath("/objects");
+    revalidatePath("/view");
     revalidatePath("/dashboard");
     return { success: true, data: { id: obj.id } };
   } catch (err: any) {
@@ -30,7 +31,9 @@ export async function updateObjectModuleAction(
     if (!ctx) throw new Error("Unauthorized");
     await objectService.updateObjectModule(ctx, objectId, moduleId, data);
     revalidatePath("/objects");
+    revalidatePath("/view");
     revalidatePath(`/objects/${objectId}`);
+    revalidatePath(`/record/${objectId}`);
     revalidatePath("/dashboard");
     return { success: true, data: undefined };
   } catch (err: any) {
@@ -46,6 +49,7 @@ export async function deleteObjectAction(
     if (!ctx) throw new Error("Unauthorized");
     await objectService.deleteObject(ctx, objectId);
     revalidatePath("/objects");
+    revalidatePath("/view");
     revalidatePath("/dashboard");
     return { success: true, data: undefined };
   } catch (err: any) {

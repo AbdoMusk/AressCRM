@@ -40,3 +40,32 @@ export async function DELETE(
     return handleApiError(err);
   }
 }
+
+/**
+ * PATCH /api/objects/[id] — Update object module data
+ * Body: { moduleId: string, data: Record<string, unknown> }
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const ctx = await getAuthContext();
+    if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { id } = await params;
+    const body = await request.json();
+
+    if (!body.moduleId || !body.data) {
+      return NextResponse.json(
+        { error: "Missing moduleId or data in request body" },
+        { status: 422 }
+      );
+    }
+
+    const updated = await objectService.updateObjectModule(ctx, id, body.moduleId, body.data);
+    return NextResponse.json({ data: updated });
+  } catch (err) {
+    return handleApiError(err);
+  }
+}

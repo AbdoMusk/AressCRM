@@ -33,7 +33,11 @@ export function UserManager({ initialUsers, allRoles, currentUserId }: Props) {
     setError(null);
     setLoading(userId);
     try {
-      await assignRoleAction(userId, roleId);
+      const result = await assignRoleAction(userId, roleId);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       const role = allRoles.find((r) => r.id === roleId);
       if (role) {
         setUsers((prev) =>
@@ -44,7 +48,7 @@ export function UserManager({ initialUsers, allRoles, currentUserId }: Props) {
           )
         );
       }
-      await router.refresh();
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to assign role");
     } finally {
@@ -56,7 +60,11 @@ export function UserManager({ initialUsers, allRoles, currentUserId }: Props) {
     setError(null);
     setLoading(userId);
     try {
-      await revokeRoleAction(userId, roleId);
+      const result = await revokeRoleAction(userId, roleId);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       setUsers((prev) =>
         prev.map((u) =>
           u.id === userId
@@ -64,7 +72,7 @@ export function UserManager({ initialUsers, allRoles, currentUserId }: Props) {
             : u
         )
       );
-      await router.refresh();
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to revoke role");
     } finally {
@@ -77,14 +85,18 @@ export function UserManager({ initialUsers, allRoles, currentUserId }: Props) {
     setError(null);
     setLoading(userId);
     try {
-      await updateUserProfileAction(userId, { full_name: editName.trim() });
+      const result = await updateUserProfileAction(userId, { full_name: editName.trim() });
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       setUsers((prev) =>
         prev.map((u) =>
           u.id === userId ? { ...u, full_name: editName.trim() } : u
         )
       );
       setEditingId(null);
-      await router.refresh();
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update name");
     } finally {

@@ -1,0 +1,383 @@
+Views & Pipelines
+Learn how to create and manage views in Twenty.
+
+Views & Pipelines
+​
+Understanding Views
+Views are saved configurations that determine how your data is displayed. Each view can have its own:
+Layout: Table, Kanban, or Calendar
+Filters: Which records to show
+Sorting: How records are ordered
+Fields: Which columns are visible
+​
+View Types
+​
+Table View
+The default spreadsheet-like view showing records in rows with customizable columns.
+​
+Kanban View
+A visual board view where records appear as cards organized by stages. Ideal for:
+Sales pipelines
+Project tracking
+Any workflow with defined stages
+​
+Calendar View
+Display records with date fields on a calendar. Perfect for:
+Meetings and events
+Deadlines and due dates
+Time-based planning
+​
+Creating a View
+There are two ways to create a new view.
+​
+Use the View Dropdown Menu
+Navigate to any object (People, Companies, etc.)
+Click the view name at the top left (shows current view with a dropdown arrow)
+Click + Add view
+Name your view and click Create
+Choose a layout (Table, Kanban, or Calendar) under Options
+Add filters and sorting as needed
+Select which fields to display and reorder them
+Click Save
+
+​
+Start by editting an existing view
+Navigate to any object (People, Companies, etc.)
+Choose a layout (Table, Kanban, or Calendar) under Options or Add filters and sorting as needed
+Click on Save as new view
+Name your view and click Create
+Keep editing your new view
+Click on Update view to save your additional configurations
+
+​
+Managing Views
+​
+Edit a View
+Select the view from the dropdown
+Make your changes (filters, sorting, columns)
+Click Save to update the view
+​
+Rename a View or Change Its Icon
+Open the view dropdown
+Click the ⋮ menu next to the view name
+Select Edit
+Change the name or icon
+Click Save
+​
+Reorder Views
+Open the view dropdown
+Click and drag a view by its handle
+Drop it in the desired position
+The new order is saved automatically
+​
+Add to Favorites
+Pin frequently used views for quick access:
+Open the view dropdown
+Click the ⋮ menu next to a view
+Select Add to favorites
+The view appears in your favorites section
+​
+Delete a View
+Select the view to delete
+Click the view dropdown
+Click the ⋮ menu next to the view
+Select Delete
+Confirm deletion
+Deleted views cannot be recovered. Make sure you want to remove it before confirming.
+​
+View Visibility
+Each view (except the default “All [Object Name]” views) has its own visibility setting.
+To change visibility:
+Open the view
+Click Options → Visibility
+Choose:
+Workspace: Visible to all workspace members
+Unlisted: Visible only to you
+The default “All [Object Name]” views cannot have their visibility changed.
+​
+Next Steps
+Table Views
+Kanban Views
+Filters and Sorting
+View Settings
+
+Table Views
+Display your data in a spreadsheet-like list format.
+
+​
+About Table Views
+Table views display records in rows with customizable columns—like a spreadsheet. This is the default view type for most objects.
+
+​
+Features
+​
+Column Configuration
+Show or hide columns (fields)
+Resize column widths
+Reorder columns by dragging
+​
+Group By a Select Field
+Organize records into collapsible groups based on a field of select type.
+
+Click Options
+Select Group
+Choose a Select field
+Configure group order under Options → Group → Sort:
+Alphabetical or Reverse alphabetical
+Manual order: Drag groups under “Visible groups” to reorder
+Click the eye icon next to a group to hide it
+Use cases:
+Group Company by Type
+Group Opportunities by Stage
+Group Tasks by Status
+For best performance, limit to 10-15 visible groups per view. If you need more groups, consider using a Dashboard instead.
+​
+Column Widths
+Resize columns to show more or less content:
+Hover between two column headers
+Click and drag the column border
+Release to set the new width
+​
+When to Use Table Views
+Table views work best for:
+Browsing large datasets — scan many records quickly
+Data entry — edit multiple records efficiently
+Detailed analysis — see many fields at once
+Sorting and filtering — find specific records
+​
+Related
+Fields and Columns — configuring which fields to display
+Filters and Sorting — narrowing down records
+
+Kanban Board Views
+Learn how to use Kanban views to visualize and manage your workflows.
+
+​
+About Kanban Views
+Kanban views visually map out process flows, where each column stands for a distinct stage and each card represents a record.
+​
+Move Cards between Stages
+You can move each card between stages as it goes through your workflow by dragging and dropping. To proceed, hold your click on a card and move it to the next stage.
+
+​
+Add and Delete Stages
+You can tailor your workflow to suit your needs using stages, which represent a value in a Select Field:
+​
+Add Stages
+To add a stage, access the Select field settings by navigating to Settings > Data Model, selecting your object, and then the field your Kanban board depends on.
+
+​
+Remove Stages
+To remove a stage, hover the stage name or the ⋮ icon, click Edit from settings in the Select field settings, and then click Delete next to the relevant stage.
+​
+Display Fields
+You can configure your Kanban board to display some fields and hide others. To hide a field, click on Options on the top right, then on Fields to bring up the list of options. Look for the field needed in the Hidden Fields section and click on the eye button to display the field.
+You can also rearrange the order of fields by holding down the field name and dragging it to where you want it.
+
+​
+Compact View
+You can hide all the fields and get an overview of all records at a glance. To enable:
+Click Options on the top right
+Turn on the toggle for Compact view
+
+​
+Column Aggregations
+Each column in a Kanban view can display aggregated values at the top, helping you understand your data at a glance.
+​
+Available Aggregations
+Aggregation	Description
+Count	Number of records in the column
+Sum	Total of a numeric field (e.g., deal amounts)
+Average	Average value of a numeric field
+Min	Lowest value
+Max	Highest value
+​
+Configuring Aggregations
+Click on the number displayed next to the Stage value, at the top of a column
+Select the aggregation type
+Choose the field to aggregate
+Example: Show total deal value per stage by aggregating the Amount field with Sum.
+​
+When to Use Kanban Views
+Kanban views are ideal for:
+Sales pipelines: Track deals through stages from lead to close
+Project management: Monitor tasks through workflow states
+Recruitment: Track candidates through hiring stages
+Any staged process: Visualize any workflow with defined stages
+​
+Best Practices
+​
+Organize Your Stages
+Limit stages: 5-7 stages is ideal for visibility
+Clear naming: Use descriptive stage names
+Logical order: Arrange stages in process order
+​
+Optimize Card Display
+Show key fields: Display only the most important information
+Use compact view: For high-level overviews
+Color coding: Use stage colors to quickly identify status
+​
+Maintain Data Quality
+Update regularly: Keep cards moving through stages
+Archive completed: Move closed items out of active view
+Review stale cards: Follow up on cards stuck in stages
+
+Filters & Sorting
+Filter and sort records to find exactly what you need.
+
+​
+Filtering Data
+Filters help you focus on specific records by showing only those that match your criteria.
+​
+Adding a Filter
+Click the Filter button in the toolbar
+Select the field to filter by
+Choose the operator (equals, contains, etc.)
+Enter the filter value
+Click Apply
+​
+Filter Operators
+Field Type	Available Operators
+Text	Equals, Contains, Starts with, Ends with, Is empty
+Number	Equals, Greater than, Less than, Between, Is empty
+Date	Equals, Before, After, Between, Is empty
+Select	Equals, Is any of, Is empty
+Checkbox	Is true, Is false
+Relation	Equals, Is empty
+​
+Multiple Filters
+Combine multiple filters to narrow down results:
+All filters are applied with AND logic
+Each additional filter further restricts results
+​
+Removing Filters
+Click the X on individual filter chips
+Click Clear all to remove all filters
+​
+Sorting Data
+Sorting determines the order records appear.
+​
+Adding a Sort
+Click the Sort button in the toolbar
+Select the field to sort by
+Choose ascending (A-Z, 0-9) or descending (Z-A, 9-0)
+Click Apply
+​
+Multiple Sorts
+Add multiple sort levels:
+First sort is primary
+Subsequent sorts apply within groups of equal values
+​
+Quick Column Sorting
+Click any column header to sort:
+First click: Ascending
+Second click: Descending
+Third click: Remove sort
+​
+Saving Filter and Sort Settings
+Filters and sorts are saved with the view:
+Configure your filters and sorts
+Click Save to update the current view
+Or click Save as new view to create a variant
+​
+Related
+Table Views — group by feature
+Views Overview — building and managing views
+
+Fields & Columns
+Choose which fields to display and how to organize them.
+
+​
+Selecting Fields to Display
+Each view can show a different set of fields. Customize what’s visible to focus on the information that matters.
+​
+Show or Hide Fields
+Click Options in the top right
+Click Fields
+Click the eye icon next to each field to show/hide it
+​
+Reorder Fields
+Change the order fields appear in your view:
+Click Options → Fields
+Drag fields up or down
+Changes save automatically
+​
+Field Display by View Type
+​
+Table Views
+Fields appear as columns
+Resize columns by dragging borders
+​
+Kanban Views
+Fields appear on cards
+Reorder via Options → Fields
+Use Compact view to hide all fields
+​
+Calendar Views
+Selected fields show on calendar events
+Configure via Options → Fields
+​
+Best Practices
+Show only what’s needed — too many fields clutters the view
+Put important fields first — most-used columns on the left
+Create multiple views — different field sets for different purposes
+Use field visibility per view — same object, different focus
+​
+Related
+Table Views — list view features
+Kanban Views — card-based views
+
+View Settings
+Manage view visibility, naming, icons, and organization.
+
+​
+View Visibility
+Control who can see your custom views.
+​
+Visibility Options
+Setting	Who Can See
+Workspace	All workspace members
+Unlisted	Only you
+​
+Changing Visibility
+Open the view
+Click Options → Visibility
+Select Workspace or Unlisted
+The default “All [Object Name]” views cannot have their visibility changed.
+​
+Rename a View
+Open the view dropdown
+Click the ⋮ menu next to the view
+Select Edit
+Enter the new name
+​
+Change View Icon
+Open the view dropdown
+Click the ⋮ menu next to the view
+Select Edit
+Click the icon to change it
+​
+Reorder Views
+Change the order views appear in the dropdown:
+Open the view dropdown
+Drag views by their handle
+Drop in the desired position
+Order saves automatically
+​
+Favorites
+Pin frequently used views for quick access:
+Open the view dropdown
+Click the ⋮ menu next to a view
+Select Add to favorites
+Favorited views appear in a dedicated section for easy access.
+​
+Delete a View
+Open the view dropdown
+Click the ⋮ menu next to the view
+Select Delete
+Confirm deletion
+Deleted views cannot be recovered.
+​
+Related
+Views Overview — creating views
+How to Restrict Access — step-by-step guide

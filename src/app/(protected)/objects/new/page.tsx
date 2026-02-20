@@ -41,7 +41,8 @@ export default async function NewObjectPage({
   );
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="mx-auto max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
         Create Object
       </h1>
@@ -49,6 +50,7 @@ export default async function NewObjectPage({
         objectTypes={objectTypesWithSchemas}
         initialTypeId={params.type}
       />
+      </div>
     </div>
   );
 }
