@@ -16,6 +16,7 @@ import {
   Plus,
   BarChart3,
   Database,
+  Store,
 } from "lucide-react";
 import { LogoutButton } from "./LogoutButton";
 
@@ -154,6 +155,17 @@ export function AppSidebar({ permissions, objectTypes = [], userId, userEmail }:
             icon={<LayoutDashboard size={18} />}
             label="Dashboard"
             active={pathname === "/dashboard"}
+            collapsed={collapsed}
+          />
+        )}
+
+        {/* ── Marketplace ── */}
+        {hasObjectRead && (
+          <NavItem
+            href="/marketplace"
+            icon={<Store size={18} />}
+            label="Marketplace"
+            active={pathname === "/marketplace" || pathname.startsWith("/marketplace/")}
             collapsed={collapsed}
           />
         )}
