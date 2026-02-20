@@ -2,6 +2,9 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
  [Aress CRM](https://aress-crm.vercel.app/)
+ 
 admin login: abdellahokrad@gmail.com | test
-salesperson or you can choose and composite any role for it from user management: abdelerror@gmail.com | test
-you can signup new users
+
+salesperson or you can define and composite any role for it from user management: abdelerror@gmail.com | test
+
+you can also signup new users with email (need email verification)
