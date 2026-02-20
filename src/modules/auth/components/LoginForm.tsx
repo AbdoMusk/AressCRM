@@ -29,17 +29,21 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
+        <div
+          className="rounded-lg p-3 text-sm"
+          style={{
+            background: "rgba(220,0,60,0.12)",
+            border: "1px solid rgba(255,80,100,0.3)",
+            color: "#ff8a9a",
+          }}
+        >
           {error}
         </div>
       )}
       <div>
-        <label
-          htmlFor="email"
-          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-        >
+        <label htmlFor="email" className="auth-label">
           Email
         </label>
         <input
@@ -48,15 +52,12 @@ export function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          className="auth-input w-full rounded-lg px-3 py-2.5 text-sm"
           placeholder="you@company.com"
         />
       </div>
       <div>
-        <label
-          htmlFor="password"
-          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-        >
+        <label htmlFor="password" className="auth-label">
           Password
         </label>
         <input
@@ -65,23 +66,20 @@ export function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          className="auth-input w-full rounded-lg px-3 py-2.5 text-sm"
           placeholder="••••••••"
         />
       </div>
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        className="auth-button mt-1 w-full rounded-lg px-4 py-2.5 text-sm"
       >
         {loading ? "Signing in…" : "Sign In"}
       </button>
-      <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+      <p className="text-center text-sm" style={{ color: "rgba(0,200,160,0.6)" }}>
         Don&apos;t have an account?{" "}
-        <Link
-          href="/signup"
-          className="text-blue-600 hover:underline dark:text-blue-400"
-        >
+        <Link href="/signup" className="auth-link">
           Sign up
         </Link>
       </p>

@@ -7,21 +7,22 @@ export const metadata = {
 
 export default function LoginPage() {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-      <div className="mb-6 flex flex-col items-center text-center">
+    <>
+      <div className="mb-7 flex flex-col items-center text-center">
         <Image
           src="/aress-CRM-logo.png"
           alt="AressCRM"
           width={320}
           height={116}
-          className="mb-2 h-14 w-auto"
+          className="mb-3 h-12 w-auto brightness-200 saturate-150"
           priority
         />
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <h1 className="text-lg font-semibold text-white tracking-wide">Welcome back</h1>
+        <p className="mt-1 text-xs" style={{ color: "rgba(0,210,172,0.7)" }}>
           Sign in to your account
         </p>
       </div>
       <LoginForm />
-    </div>
+    </>
   );
 }

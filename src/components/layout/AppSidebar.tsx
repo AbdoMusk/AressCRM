@@ -17,6 +17,7 @@ import {
   BarChart3,
   Database,
 } from "lucide-react";
+import { LogoutButton } from "./LogoutButton";
 
 // ── Types ────────────────────────────────────
 
@@ -31,11 +32,13 @@ interface ObjectTypeNav {
 interface SidebarProps {
   permissions: string[];
   objectTypes?: ObjectTypeNav[];
+  userId?: string;
+  userEmail?: string;
 }
 
 // ── Component ────────────────────────────────
 
-export function AppSidebar({ permissions, objectTypes = [] }: SidebarProps) {
+export function AppSidebar({ permissions, objectTypes = [], userId, userEmail }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -60,8 +63,11 @@ export function AppSidebar({ permissions, objectTypes = [] }: SidebarProps) {
         collapsed ? "w-[52px]" : "w-[220px]"
       )}
     >
-      {/* ── Header: Logo + Collapse ── */}
-      <div className="flex h-12 items-center justify-between border-b border-gray-100 px-3 dark:border-gray-800/60">
+      {/* ── Header: Logo + Collapse/Expand ── */}
+      <div className={clsx(
+        "flex h-12 items-center border-b border-gray-100 px-3 dark:border-gray-800/60",
+        collapsed ? "justify-center" : "justify-between"
+      )}>
         {!collapsed && (
           <Image
             src="/aress-CRM-logo.png"
@@ -73,18 +79,25 @@ export function AppSidebar({ permissions, objectTypes = [] }: SidebarProps) {
           />
         )}
         {collapsed && (
-          <Image
-            src="/aress-CRM-favicon.png"
-            alt="AressCRM"
-            width={24}
-            height={24}
-            className="mx-auto h-6 w-6"
-          />
+          <button
+            onClick={() => setCollapsed(false)}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Expand sidebar"
+          >
+            <Image
+              src="/aress-CRM-favicon.png"
+              alt="Expand"
+              width={24}
+              height={24}
+              className="h-6 w-6"
+            />
+          </button>
         )}
         {!collapsed && (
           <button
             onClick={() => setCollapsed(true)}
             className="rounded p-0.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Collapse sidebar"
           >
             <ChevronLeft size={16} />
           </button>
@@ -93,24 +106,37 @@ export function AppSidebar({ permissions, objectTypes = [] }: SidebarProps) {
 
       {/* ── Search ── */}
       {!collapsed && (
-        <div className="px-2 pt-2">
-          <button
-            onClick={() => setSearchOpen(!searchOpen)}
-            className="flex w-full items-center gap-2 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-400 transition-colors hover:border-gray-300 hover:text-gray-500 dark:border-gray-800 dark:hover:border-gray-700"
-          >
-            <Search size={14} />
-            <span>Search</span>
-            <kbd className="ml-auto rounded border border-gray-200 px-1 text-[10px] text-gray-300 dark:border-gray-700">
-              /
-            </kbd>
-          </button>
+        <div className="border-b border-gray-100 px-2 py-2 dark:border-gray-800/60">
+          {!searchOpen ? (
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="flex w-full items-center gap-2 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-400 transition-colors hover:border-gray-300 hover:text-gray-500 dark:border-gray-800 dark:hover:border-gray-700"
+            >
+              <Search size={14} />
+              <span>Search</span>
+              <kbd className="ml-auto rounded border border-gray-200 px-1 text-[10px] text-gray-300 dark:border-gray-700">
+                /
+              </kbd>
+            </button>
+          ) : (
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search objects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onBlur={() => { if (!searchQuery) setSearchOpen(false); }}
+              className="w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            />
+          )}
         </div>
       )}
       {collapsed && (
-        <div className="flex justify-center pt-2">
+        <div className="flex justify-center border-b border-gray-100 py-2 dark:border-gray-800/60">
           <button
             onClick={() => { setCollapsed(false); setSearchOpen(true); }}
             className="rounded p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Search"
           >
             <Search size={16} />
           </button>
@@ -143,7 +169,13 @@ export function AppSidebar({ permissions, objectTypes = [] }: SidebarProps) {
               </div>
             )}
             {collapsed && <div className="mt-3 mb-1 border-t border-gray-100 dark:border-gray-800" />}
-            {objectTypes.map((ot) => {
+            {objectTypes
+              .filter((ot) =>
+                !searchQuery ||
+                ot.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                ot.name.toLowerCase().includes(searchQuery.toLowerCase())
+              )
+              .map((ot) => {
               const href = `/view/${ot.name}`;
               const isActive = pathname === href || pathname.startsWith(href + "/");
 
@@ -193,7 +225,7 @@ export function AppSidebar({ permissions, objectTypes = [] }: SidebarProps) {
         )}
       </nav>
 
-      {/* ── Footer: Settings + Expand ── */}
+      {/* ── Footer: Settings + Logout ── */}
       <div className="border-t border-gray-100 px-2 py-2 dark:border-gray-800">
         {hasSettings && (
           <NavItem
@@ -204,13 +236,10 @@ export function AppSidebar({ permissions, objectTypes = [] }: SidebarProps) {
             collapsed={collapsed}
           />
         )}
-        {collapsed && (
-          <button
-            onClick={() => setCollapsed(false)}
-            className="mt-1 flex w-full items-center justify-center rounded-md p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-          >
-            <ChevronRight size={16} />
-          </button>
+        {userId && (
+          <div className={collapsed ? "flex justify-center" : ""}>
+            <LogoutButton userId={userId} userEmail={userEmail} />
+          </div>
         )}
       </div>
     </aside>

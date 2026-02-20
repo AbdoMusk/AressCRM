@@ -10,6 +10,8 @@ export { ObjectList } from "./ObjectList";
 export { ObjectTypeManager } from "./ObjectTypeManager";
 export { ModuleManager } from "./ModuleManager";
 export { RelationManager } from "./RelationManager";
+export { DataModelHub } from "./DataModelHub";
+export { ObjectTypeDetail } from "./ObjectTypeDetail";
 export { EnhancedDashboardView } from "./EnhancedDashboardView";
 export { PipelineView } from "./PipelineView";
 export { Timeline } from "./Timeline";

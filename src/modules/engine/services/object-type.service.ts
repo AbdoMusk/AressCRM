@@ -145,6 +145,7 @@ export async function createObjectType(
       description: input.description ?? null,
       icon: input.icon ?? null,
       color: input.color ?? null,
+      is_active: input.is_active ?? true,
     })
     .select()
     .single();
@@ -209,6 +210,7 @@ export async function updateObjectType(
   if (input.description !== undefined) updateData.description = input.description;
   if (input.icon !== undefined) updateData.icon = input.icon;
   if (input.color !== undefined) updateData.color = input.color;
+  if (input.is_active !== undefined) updateData.is_active = input.is_active;
 
   if (Object.keys(updateData).length > 0) {
     const { error } = await admin

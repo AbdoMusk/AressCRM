@@ -66,6 +66,7 @@ export interface Database {
           description: string | null;
           icon: string | null;
           schema: Json;
+          is_active: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -76,6 +77,7 @@ export interface Database {
           description?: string | null;
           icon?: string | null;
           schema: Json;
+          is_active?: boolean;
         };
         Update: {
           name?: string;
@@ -83,6 +85,7 @@ export interface Database {
           description?: string | null;
           icon?: string | null;
           schema?: Json;
+          is_active?: boolean;
         };
         Relationships: [];
       };
@@ -94,6 +97,7 @@ export interface Database {
           description: string | null;
           icon: string | null;
           color: string | null;
+          is_active: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -104,6 +108,7 @@ export interface Database {
           description?: string | null;
           icon?: string | null;
           color?: string | null;
+          is_active?: boolean;
         };
         Update: {
           name?: string;
@@ -111,6 +116,7 @@ export interface Database {
           description?: string | null;
           icon?: string | null;
           color?: string | null;
+          is_active?: boolean;
         };
         Relationships: [];
       };
@@ -192,6 +198,38 @@ export interface Database {
         };
         Update: {
           relation_type?: string;
+          metadata?: Json;
+        };
+        Relationships: [];
+      };
+      object_type_relations: {
+        Row: {
+          id: string;
+          source_type_id: string;
+          target_type_id: string;
+          relation_type: string;
+          source_field_name: string;
+          target_field_name: string;
+          is_active: boolean;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          source_type_id: string;
+          target_type_id: string;
+          relation_type: string;
+          source_field_name: string;
+          target_field_name: string;
+          is_active?: boolean;
+          metadata?: Json;
+        };
+        Update: {
+          relation_type?: string;
+          source_field_name?: string;
+          target_field_name?: string;
+          is_active?: boolean;
           metadata?: Json;
         };
         Relationships: [];

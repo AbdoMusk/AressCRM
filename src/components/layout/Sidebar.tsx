@@ -14,6 +14,7 @@ import {
   Layers,
   Kanban,
   FileText,
+  Search,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -42,6 +43,7 @@ interface SidebarProps {
 export function Sidebar({ permissions, objectTypes = [] }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [objectSearch, setObjectSearch] = useState("");
 
   // Build nav items dynamically
   const navItems: NavItem[] = [
@@ -69,7 +71,7 @@ export function Sidebar({ permissions, objectTypes = [] }: SidebarProps) {
       icon: <FileText size={20} />,
     },
     {
-      label: "Registry",
+      label: "Data Model",
       href: "/registry",
       icon: <Layers size={20} />,
       permissionAny: ["module:manage", "object_type:manage"],
@@ -102,8 +104,13 @@ export function Sidebar({ permissions, objectTypes = [] }: SidebarProps) {
         collapsed ? "w-16" : "w-60"
       )}
     >
-      {/* Logo */}
-      <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-800">
+      {/* Logo + collapse toggle */}
+      <div
+        className={clsx(
+          "flex h-16 items-center border-b border-gray-200 dark:border-gray-800",
+          collapsed ? "justify-center px-2" : "justify-between px-4"
+        )}
+      >
         {!collapsed && (
           <Image
             src="/aress-CRM-logo.png"
@@ -114,18 +121,10 @@ export function Sidebar({ permissions, objectTypes = [] }: SidebarProps) {
             priority
           />
         )}
-        {collapsed && (
-          <Image
-            src="/aress-CRM-favicon.png"
-            alt="AressCRM"
-            width={28}
-            height={28}
-            className="h-7 w-7"
-          />
-        )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          className="flex-shrink-0 rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
@@ -161,11 +160,35 @@ export function Sidebar({ permissions, objectTypes = [] }: SidebarProps) {
             permissions.includes("object:read:own")) && (
             <>
               {!collapsed && (
-                <div className="px-3 pb-1 pt-4 text-xs font-semibold uppercase text-gray-400">
-                  Object Types
-                </div>
+                <>
+                  <div className="px-3 pb-1 pt-4 text-xs font-semibold uppercase text-gray-400">
+                    Object Types
+                  </div>
+                  <div className="relative px-2 pb-1">
+                    <Search
+                      size={13}
+                      className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Filter objects…"
+                      value={objectSearch}
+                      onChange={(e) => setObjectSearch(e.target.value)}
+                      className="w-full rounded-md border border-gray-200 bg-gray-50 py-1 pl-7 pr-3 text-xs text-gray-600 placeholder-gray-400 focus:border-blue-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-500"
+                    />
+                  </div>
+                </>
               )}
-              {objectTypes.map((ot) => {
+              {objectTypes
+                .filter(
+                  (ot) =>
+                    !objectSearch ||
+                    ot.display_name
+                      .toLowerCase()
+                      .includes(objectSearch.toLowerCase()) ||
+                    ot.name.toLowerCase().includes(objectSearch.toLowerCase())
+                )
+                .map((ot) => {
                 const href = `/objects?type=${ot.id}`;
 
                 return (

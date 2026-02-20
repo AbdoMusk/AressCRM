@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { tw } from "./DynamicField";
 import {
@@ -15,7 +15,21 @@ import type {
   ModuleSchema,
   ModuleCreateInput,
 } from "@/modules/engine/types/module.types";
-import { Plus, Edit2, Trash2, X, GripVertical } from "lucide-react";
+import { Plus, Edit2, Trash2, X } from "lucide-react";
+
+// Utility to convert text to kebab-case slug
+function toSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "_");
+}
+
+// Client-side field type with metadata
+interface ClientModuleField extends ModuleFieldDef {
+  keyManuallySet?: boolean;
+}
 
 const FIELD_TYPES: ModuleFieldType[] = [
   "text",
@@ -49,7 +63,17 @@ export function ModuleManager({ modules }: Props) {
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("");
-  const [fields, setFields] = useState<ModuleFieldDef[]>([]);
+  const [fields, setFields] = useState<ClientModuleField[]>([]);
+  
+  // Track if slug/key were manually modified
+  const [slugManuallyModified, setSlugManuallyModified] = useState(false);
+
+  // Auto-generate slug from displayName when it changes (unless manually modified)
+  useEffect(() => {
+    if (!slugManuallyModified && displayName) {
+      setName(toSlug(displayName));
+    }
+  }, [displayName, slugManuallyModified]);
 
   function resetForm() {
     setName("");
@@ -59,6 +83,7 @@ export function ModuleManager({ modules }: Props) {
     setFields([]);
     setEditingId(null);
     setError(null);
+    setSlugManuallyModified(false);
   }
 
   function startCreate() {
@@ -74,18 +99,30 @@ export function ModuleManager({ modules }: Props) {
     setFields([...mod.schema.fields]);
     setEditingId(mod.id);
     setMode("edit");
+    setSlugManuallyModified(true); // In edit mode, assume slug is already set
   }
 
   function addField() {
     setFields((prev) => [
       ...prev,
-      { key: "", type: "text", label: "", required: false },
+      { key: "", type: "text", label: "", required: false, keyManuallySet: false },
     ]);
   }
 
-  function updateField(idx: number, partial: Partial<ModuleFieldDef>) {
+  function updateField(idx: number, partial: Partial<ClientModuleField>) {
     setFields((prev) =>
-      prev.map((f, i) => (i === idx ? { ...f, ...partial } : f))
+      prev.map((f, i) => {
+        if (i !== idx) return f;
+        const updated = { ...f, ...partial };
+
+        // Auto-generate key from label if label changed and key is empty or not manually set
+        if ("label" in partial && partial.label && !f.keyManuallySet) {
+          const newKey = toSlug(partial.label);
+          return { ...updated, key: newKey, keyManuallySet: false };
+        }
+
+        return updated;
+      })
     );
   }
 
@@ -98,7 +135,13 @@ export function ModuleManager({ modules }: Props) {
     setLoading(true);
     setError(null);
 
-    const schema: ModuleSchema = { fields };
+    const schema: ModuleSchema = {
+      fields: fields.map((f) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { keyManuallySet, ...cleanField } = f as any;
+        return cleanField as ModuleFieldDef;
+      }),
+    };
     const payload: ModuleCreateInput = {
       name,
       display_name: displayName,
@@ -238,16 +281,6 @@ export function ModuleManager({ modules }: Props) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className={tw.label}>Name (slug)</label>
-            <input
-              className={tw.input}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. monetary"
-              required
-            />
-          </div>
-          <div>
             <label className={tw.label}>Display Name</label>
             <input
               className={tw.input}
@@ -256,6 +289,28 @@ export function ModuleManager({ modules }: Props) {
               placeholder="e.g. Monetary"
               required
             />
+            <p className="mt-1 text-xs text-gray-500">
+              This is the user-friendly name for the module
+            </p>
+          </div>
+          <div>
+            <label className={tw.label}>Module Slug (auto-generated)</label>
+            <input
+              className={tw.input}
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setSlugManuallyModified(true);
+              }}
+              placeholder="e.g. monetary"
+              required
+              disabled={mode === "edit"}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {mode === "create"
+                ? "Generated from display name, or modify as needed"
+                : "Slug cannot be changed after creation"}
+            </p>
           </div>
           <div>
             <label className={tw.label}>Icon</label>
@@ -298,42 +353,190 @@ export function ModuleManager({ modules }: Props) {
               {fields.map((field, idx) => (
                 <div
                   key={idx}
-                  className="flex items-start gap-2 rounded-lg border border-gray-200 p-2 dark:border-gray-800"
+                  className="rounded-lg border border-gray-200 p-3 dark:border-gray-800"
                 >
-                  <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
-                    <input
-                      className={tw.input}
-                      placeholder="key"
-                      value={field.key}
-                      onChange={(e) =>
-                        updateField(idx, { key: e.target.value })
-                      }
-                      required
-                    />
-                    <input
-                      className={tw.input}
-                      placeholder="Label"
-                      value={field.label}
-                      onChange={(e) =>
-                        updateField(idx, { label: e.target.value })
-                      }
-                      required
-                    />
-                    <select
-                      className={tw.input}
-                      value={field.type}
-                      onChange={(e) =>
-                        updateField(idx, {
-                          type: e.target.value as ModuleFieldType,
-                        })
-                      }
-                    >
-                      {FIELD_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {/* Label - most important */}
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                        Label
+                      </label>
+                      <input
+                        className={tw.input}
+                        placeholder="e.g. Amount"
+                        value={field.label}
+                        onChange={(e) =>
+                          updateField(idx, { label: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    {/* Key - auto-generated from label */}
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                        Key (auto-generated)
+                      </label>
+                      <input
+                        className={tw.input}
+                        placeholder="auto"
+                        value={field.key}
+                        onChange={(e) => {
+                          updateField(idx, { 
+                            key: e.target.value,
+                            keyManuallySet: true,
+                          });
+                        }}
+                      />
+                      <p className="mt-1 text-[10px] text-gray-500">
+                        {!field.keyManuallySet && field.key
+                          ? "Auto-generated from label"
+                          : "Click to customize"}
+                      </p>
+                    </div>
+
+                    {/* Type selector */}
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                        Type
+                      </label>
+                      <select
+                        className={tw.input}
+                        value={field.type}
+                        onChange={(e) =>
+                          updateField(idx, {
+                            type: e.target.value as ModuleFieldType,
+                          })
+                        }
+                      >
+                        {FIELD_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Options for select/multiselect */}
+                  {(field.type === "select" || field.type === "multiselect") && (
+                    <div className="mt-2">
+                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                        Options
+                      </label>
+                      <div className="mt-1 space-y-1">
+                        {(field.options ?? []).map((opt, optIdx) => (
+                          <div key={optIdx} className="flex items-center gap-2">
+                            <input
+                              className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                              placeholder="Label"
+                              value={opt.label}
+                              onChange={(e) => {
+                                const newOptions = [...(field.options ?? [])];
+                                const newValue = toSlug(e.target.value);
+                                newOptions[optIdx] = {
+                                  ...newOptions[optIdx],
+                                  label: e.target.value,
+                                  value: newValue,
+                                };
+                                updateField(idx, { options: newOptions });
+                              }}
+                            />
+                            <input
+                              className="w-24 flex-shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                              placeholder="Value"
+                              value={opt.value}
+                              onChange={(e) => {
+                                const newOptions = [...(field.options ?? [])];
+                                newOptions[optIdx] = {
+                                  ...newOptions[optIdx],
+                                  value: e.target.value,
+                                };
+                                updateField(idx, { options: newOptions });
+                              }}
+                            />
+                            <input
+                              type="color"
+                              className="h-8 w-8 cursor-pointer rounded border border-gray-300 dark:border-gray-700"
+                              value={opt.color ?? "#3b82f6"}
+                              onChange={(e) => {
+                                const newOptions = [...(field.options ?? [])];
+                                newOptions[optIdx] = {
+                                  ...newOptions[optIdx],
+                                  color: e.target.value,
+                                };
+                                updateField(idx, { options: newOptions });
+                              }}
+                              title="Option color"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newOptions = (field.options ?? []).filter(
+                                  (_, i) => i !== optIdx
+                                );
+                                updateField(idx, { options: newOptions });
+                              }}
+                              className="rounded p-1 text-gray-400 hover:text-red-600"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newOptions = [
+                              ...(field.options ?? []),
+                              { value: "", label: "", color: "#3b82f6" },
+                            ];
+                            updateField(idx, { options: newOptions });
+                          }}
+                          className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                        >
+                          + Add Option
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Default value for boolean */}
+                  {field.type === "boolean" && (
+                    <div className="mt-2">
+                      <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-400">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(field.default)}
+                          onChange={(e) =>
+                            updateField(idx, { default: e.target.checked })
+                          }
+                        />
+                        Default value (checked)
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Default value for non-special types */}
+                  {field.type !== "select" &&
+                    field.type !== "multiselect" &&
+                    field.type !== "boolean" && (
+                    <div className="mt-2">
+                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                        Default
+                      </label>
+                      <input
+                        className={tw.input}
+                        placeholder="Optional"
+                        value={(field as any).default ?? ""}
+                        onChange={(e) =>
+                          updateField(idx, { default: e.target.value || undefined })
+                        }
+                      />
+                    </div>
+                  )}
+
+                  <div className="mt-2 flex items-center justify-between">
+                    {/* Required checkbox */}
                     <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                       <input
                         type="checkbox"
@@ -344,14 +547,16 @@ export function ModuleManager({ modules }: Props) {
                       />
                       Required
                     </label>
+
+                    {/* Remove button */}
+                    <button
+                      type="button"
+                      onClick={() => removeField(idx)}
+                      className="rounded p-1 text-gray-400 hover:text-red-600"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeField(idx)}
-                    className="mt-1 rounded p-1 text-gray-400 hover:text-red-600"
-                  >
-                    <Trash2 size={14} />
-                  </button>
                 </div>
               ))}
             </div>

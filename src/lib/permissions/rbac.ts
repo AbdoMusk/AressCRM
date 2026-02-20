@@ -10,6 +10,7 @@ export interface ModulePermission {
 
 export interface AuthContext {
   userId: string;
+  email?: string;
   permissions: Set<string>;
   /** Module-level permissions keyed by "moduleId:objectTypeId" or "all:all" */
   modulePermissions: Map<string, ModulePermission>;
@@ -71,7 +72,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     });
   }
 
-  return { userId: user.id, permissions, modulePermissions };
+  return { userId: user.id, email: user.email, permissions, modulePermissions };
 }
 
 /**

@@ -81,6 +81,7 @@ export interface ObjectTypeCreateInput {
   description?: string;
   icon?: string;
   color?: string;
+  is_active?: boolean;
   modules: {
     module_id: string;
     required: boolean;
@@ -94,6 +95,7 @@ export interface ObjectTypeUpdateInput {
   description?: string;
   icon?: string;
   color?: string;
+  is_active?: boolean;
   modules?: {
     module_id: string;
     required: boolean;

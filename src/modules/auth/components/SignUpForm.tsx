@@ -32,13 +32,17 @@ export function SignUpForm() {
   if (success) {
     return (
       <div className="space-y-4 text-center">
-        <div className="rounded-lg bg-green-50 p-4 text-sm text-green-700 dark:bg-green-950 dark:text-green-400">
+        <div
+          className="rounded-lg p-4 text-sm"
+          style={{
+            background: "rgba(0,200,140,0.12)",
+            border: "1px solid rgba(0,255,180,0.25)",
+            color: "#00ffbb",
+          }}
+        >
           Check your email to confirm your account.
         </div>
-        <Link
-          href="/login"
-          className="text-sm text-blue-600 hover:underline dark:text-blue-400"
-        >
+        <Link href="/login" className="auth-link text-sm">
           Back to Sign In
         </Link>
       </div>
@@ -46,17 +50,21 @@ export function SignUpForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
+        <div
+          className="rounded-lg p-3 text-sm"
+          style={{
+            background: "rgba(220,0,60,0.12)",
+            border: "1px solid rgba(255,80,100,0.3)",
+            color: "#ff8a9a",
+          }}
+        >
           {error}
         </div>
       )}
       <div>
-        <label
-          htmlFor="fullName"
-          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-        >
+        <label htmlFor="fullName" className="auth-label">
           Full Name
         </label>
         <input
@@ -65,15 +73,12 @@ export function SignUpForm() {
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           required
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          className="auth-input w-full rounded-lg px-3 py-2.5 text-sm"
           placeholder="John Doe"
         />
       </div>
       <div>
-        <label
-          htmlFor="email"
-          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-        >
+        <label htmlFor="email" className="auth-label">
           Email
         </label>
         <input
@@ -82,15 +87,12 @@ export function SignUpForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          className="auth-input w-full rounded-lg px-3 py-2.5 text-sm"
           placeholder="you@company.com"
         />
       </div>
       <div>
-        <label
-          htmlFor="password"
-          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-        >
+        <label htmlFor="password" className="auth-label">
           Password
         </label>
         <input
@@ -100,23 +102,20 @@ export function SignUpForm() {
           onChange={(e) => setPassword(e.target.value)}
           required
           minLength={6}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          className="auth-input w-full rounded-lg px-3 py-2.5 text-sm"
           placeholder="••••••••"
         />
       </div>
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        className="auth-button mt-1 w-full rounded-lg px-4 py-2.5 text-sm"
       >
         {loading ? "Creating account…" : "Sign Up"}
       </button>
-      <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+      <p className="text-center text-sm" style={{ color: "rgba(0,200,160,0.6)" }}>
         Already have an account?{" "}
-        <Link
-          href="/login"
-          className="text-blue-600 hover:underline dark:text-blue-400"
-        >
+        <Link href="/login" className="auth-link">
           Sign in
         </Link>
       </p>

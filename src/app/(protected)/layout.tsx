@@ -23,7 +23,7 @@ export default async function ProtectedLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-950">
-      <AppSidebar permissions={permArray} objectTypes={objectTypes ?? []} />
+      <AppSidebar permissions={permArray} objectTypes={objectTypes ?? []} userId={ctx.userId} userEmail={ctx.email} />
       <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
     </div>
   );
